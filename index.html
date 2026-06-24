@@ -17,6 +17,9 @@
   .upload-zone { border: 2px dashed #d1d5db; transition: all 0.2s; }
   .upload-zone:hover { border-color: #3b82f6; background: #eff6ff; }
   canvas { touch-action: none; }
+  .preview-img { cursor: zoom-in; }
+  #imgViewer { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
+  #imgViewer img { max-width:95vw; max-height:95vh; object-fit:contain; }
   @media (max-width: 640px) { .desktop-only { display: none !important; } }
   @media (min-width: 641px) { .mobile-only { display: none !important; } }
 </style>
@@ -279,6 +282,8 @@
 <!-- ============================================================ -->
 <!-- SUPABASE CONFIG — 替换为你的项目信息 -->
 <!-- ============================================================ -->
+<div id="imgViewer" class="hidden" onclick="this.classList.add('hidden')"><img id="imgViewerImg" src=""></div>
+
 <script>
 // ⚠️ 请在 Supabase 项目中获取以下信息并替换
 const SUPABASE_URL = 'https://uctvjsrwkffptixcnchz.supabase.co';
@@ -365,6 +370,11 @@ async function doLogin() {
   });
 
   showView();
+}
+
+function openViewer(src) {
+  document.getElementById('imgViewerImg').src = src;
+  document.getElementById('imgViewer').classList.remove('hidden');
 }
 
 function logout() {
@@ -778,10 +788,10 @@ async function loadStudentDetail() {
         <p>地址：${ma.address || '-'}</p>
         <p>预计离校：${ma.departure_date || '-'}</p>
       </div>
-      ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">手写委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">手写委托书：</span><img src="${d.signature_url}" class="h-32 border rounded" loading="lazy"></p>`; } })() : ''}
-      ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
-      ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
-      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="mt-2"><span class="text-gray-500 text-sm">代签委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy">`).join('')}</div></div>`; } catch(e){} return ''; })() : ''}
+      ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">手写委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">手写委托书：</span><img src="${d.signature_url}" class="h-32 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></p>`; } })() : ''}
+      ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></p>` : ''}
+      ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></p>` : ''}
+      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="mt-2"><span class="text-gray-500 text-sm">代签委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)">`).join('')}</div></div>`; } catch(e){} return ''; })() : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
       ${d.tracking_number ? `<p><span class="text-gray-500">快递单号：</span><span class="font-mono font-bold text-blue-600">${d.tracking_number}（${d.courier_company||''}）</span></p>` : ''}
       ${d.status === 'confirmed' ? `
@@ -954,9 +964,9 @@ async function viewDelegationDetail(id) {
       </div>
     </div>` : ''}
 
-    ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">手写委托书（${urls.length}张）</h4><div class="flex flex-wrap gap-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy">`).join('')}</div></div>`; } catch(e) { return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">手写委托书</h4><img src="${d.signature_url}" class="h-32 border rounded" loading="lazy"></div>`; } })() : ''}
-    ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded" loading="lazy"></div>` : ''}
-    ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded" loading="lazy"></div>` : ''}
+    ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">手写委托书（${urls.length}张）</h4><div class="flex flex-wrap gap-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)">`).join('')}</div></div>`; } catch(e) { return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">手写委托书</h4><img src="${d.signature_url}" class="h-32 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></div>`; } })() : ''}
+    ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></div>` : ''}
+    ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)"></div>` : ''}
     ${d.packaging_video_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">包装视频</h4><video src="${d.packaging_video_url}" controls class="w-full max-h-64 rounded"></video></div>` : ''}
 
     <!-- Review Section (for submitted/pending delegations) -->
@@ -997,7 +1007,7 @@ async function viewDelegationDetail(id) {
       <h4 class="text-sm font-bold mb-2">📝 回传代签委托书</h4>
       <p class="text-xs text-gray-500 mb-1">上传你代签后的委托书照片，学生端可查看</p>
       <input id="signedLetter_${d.id}" type="file" accept="image/*" multiple class="text-xs w-full mb-1">
-      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-16 border rounded" loading="lazy">`).join('')}</div>`; } catch(e){} return ''; })() : ''}
+      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-16 border rounded preview-img" loading="lazy" onclick="event.stopPropagation();openViewer(this.src)">`).join('')}</div>`; } catch(e){} return ''; })() : ''}
       <button onclick="uploadSignedLetter('${d.id}')" class="bg-purple-600 text-white px-3 py-1 rounded text-xs mt-1">上传代签委托书</button>
     </div>
 
