@@ -1122,14 +1122,13 @@ async function exportIdCardPDF(id) {
     const pageW = 210, pageH = 297;
     const margin = 15, availW = pageW - margin * 2;
 
-    // 正面在上，反面在下，原比例居中
+    // 正面：第1页
     const h1 = availW * (front.height / front.width);
+    pdf.addImage(front, 'JPEG', margin, (pageH - Math.min(h1, pageH - margin * 2)) / 2, availW, Math.min(h1, pageH - margin * 2));
+    // 反面：第2页
+    pdf.addPage();
     const h2 = availW * (back.height / back.width);
-    const gap = 6, th = h1 + gap + h2;
-    const sy = Math.max(margin, (pageH - th) / 2);
-
-    pdf.addImage(front, 'JPEG', margin, sy, availW, Math.min(h1, pageH - sy - margin));
-    pdf.addImage(back, 'JPEG', margin, sy + h1 + gap, availW, Math.min(h2, pageH - sy - h1 - gap - margin));
+    pdf.addImage(back, 'JPEG', margin, (pageH - Math.min(h2, pageH - margin * 2)) / 2, availW, Math.min(h2, pageH - margin * 2));
     pdf.save(`${name}_idcard.pdf`);
 
   } catch (e) {

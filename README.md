@@ -31,7 +31,7 @@ INSERT INTO students (student_id, name, class_name, dormitory, phone, role) VALU
 ('学号1', '姓名1', '班级1', '宿舍号1', '电话1', 'student'),
 ('学号2', '姓名2', '班级2', '宿舍号2', '电话2', 'student'),
 ...
-('班长学号', '梁怀洲', '班级', '宿舍号', '18763125603', 'monitor');
+('班长学号', '班长姓名', '班级', '宿舍号', '班长电话', 'monitor');
 ```
 
 ## 五、配置前端
