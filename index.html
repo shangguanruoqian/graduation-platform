@@ -779,6 +779,7 @@ async function loadStudentDetail() {
       ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy" loading="lazy">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded" loading="lazy"></p>`; } })() : ''}
       ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
       ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
+      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="mt-2"><span class="text-gray-500 text-sm">代签委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy">`).join('')}</div></div>`; } catch(e){} return ''; })() : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
       ${d.tracking_number ? `<p><span class="text-gray-500">快递单号：</span><span class="font-mono font-bold text-blue-600">${d.tracking_number}（${d.courier_company||''}）</span></p>` : ''}
       ${d.status === 'confirmed' ? `
@@ -990,6 +991,15 @@ async function viewDelegationDetail(id) {
       </div>
     </div>
 
+    <!-- Upload Signed Letter (Monitor) -->
+    <div class="border-t pt-3 mt-4">
+      <h4 class="text-sm font-bold mb-2">📝 回传代签委托书</h4>
+      <p class="text-xs text-gray-500 mb-1">上传你代签后的委托书照片，学生端可查看</p>
+      <input id="signedLetter_${d.id}" type="file" accept="image/*" multiple class="text-xs w-full mb-1">
+      ${d.inspection_photo_urls ? (() => { try { const urls = JSON.parse(d.inspection_photo_urls); if(urls.length>0) return `<div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-16 border rounded" loading="lazy">`).join('')}</div>`; } catch(e){} return ''; })() : ''}
+      <button onclick="uploadSignedLetter('${d.id}')" class="bg-purple-600 text-white px-3 py-1 rounded text-xs mt-1">上传代签委托书</button>
+    </div>
+
     <!-- Mailing Section -->
     <div class="border-t pt-3 mt-4">
       <h4 class="text-sm font-bold mb-2">📦 邮寄信息</h4>
@@ -1144,6 +1154,42 @@ async function saveInspection(id) {
 
   alert('验收状态已保存');
   switchMonitorTab(activeMonitorTab);
+}
+
+async function uploadSignedLetter(id) {
+  const input = document.getElementById('signedLetter_' + id);
+  if (!input || !input.files.length) { alert('请选择文件'); return; }
+  const files = input.files;
+  const urls = [];
+
+  // Get existing URLs
+  let existing = [];
+  const { data: d } = await supabase.from('delegations').select('inspection_photo_urls').eq('id', id).single();
+  if (d && d.inspection_photo_urls) {
+    try { existing = JSON.parse(d.inspection_photo_urls); } catch(e) {}
+  }
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const path = `${id}/signed_${Date.now()}_${i}.${f.name.split('.').pop()}`;
+    await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
+    const { data: ud } = supabase.storage.from('id-cards').getPublicUrl(path);
+    urls.push(ud.publicUrl);
+  }
+
+  const allUrls = [...existing, ...urls];
+  await supabase.from('delegations').update({
+    inspection_photo_urls: JSON.stringify(allUrls),
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: 'signed_letter_uploaded', details: { count: files.length }
+  });
+
+  alert('代签委托书已上传（' + files.length + '张）');
+  viewDelegationDetail(id); // Refresh
 }
 
 async function saveMailing(id) {
