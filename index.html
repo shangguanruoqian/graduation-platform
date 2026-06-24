@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>毕业证学位证代领邮寄管理平台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
+<!-- signature: using native Canvas API below -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<style>
+  .step-active { background: #3b82f6; color: white; }
+  .step-done { background: #22c55e; color: white; }
+  .step-pending { background: #e5e7eb; color: #6b7280; }
+  .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+  .upload-zone { border: 2px dashed #d1d5db; transition: all 0.2s; }
+  .upload-zone:hover { border-color: #3b82f6; background: #eff6ff; }
+  canvas { touch-action: none; }
+  @media (max-width: 640px) { .desktop-only { display: none !important; } }
+  @media (min-width: 641px) { .mobile-only { display: none !important; } }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ============================================================ -->
+<!-- LOGIN VIEW -->
+<!-- ============================================================ -->
+<div id="loginView" class="min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🎓</div>
+      <h1 class="text-xl font-bold text-gray-800">毕业证学位证代领邮寄管理</h1>
+      <p class="text-sm text-gray-500 mt-1">请登录以继续</p>
+    </div>
+    <div id="loginError" class="hidden bg-red-50 text-red-600 text-sm p-3 rounded mb-4"></div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">学号</label>
+        <input id="loginStudentId" type="text" placeholder="请输入学号" class="w-full border rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+        <input id="loginName" type="text" placeholder="请输入姓名" class="w-full border rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+      </div>
+      <button onclick="doLogin()" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition">
+        登 录
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- STUDENT VIEW -->
+<!-- ============================================================ -->
+<div id="studentView" class="hidden max-w-md mx-auto min-h-screen">
+  <!-- Header -->
+  <div class="bg-white shadow-sm px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div>
+      <span class="font-bold text-gray-800" id="studentNameDisplay"></span>
+      <span class="text-xs text-gray-500 ml-2" id="studentIdDisplay"></span>
+    </div>
+    <button onclick="logout()" class="text-sm text-red-500 hover:text-red-700">退出</button>
+  </div>
+  <!-- Tabs -->
+  <div class="flex bg-white border-b sticky top-12 z-10">
+    <button onclick="switchStudentTab('dashboard')" id="stab-dashboard" class="tab-active flex-1 py-3 text-sm font-medium text-center transition">我的委托</button>
+    <button onclick="switchStudentTab('new')" id="stab-new" class="flex-1 py-3 text-sm font-medium text-center text-gray-500 transition">新建委托</button>
+    <button onclick="switchStudentTab('detail')" id="stab-detail" class="flex-1 py-3 text-sm font-medium text-center text-gray-500 transition">详情</button>
+  </div>
+  <!-- Tab Content -->
+  <div class="p-4">
+    <!-- Dashboard Tab -->
+    <div id="studentDashboard">
+      <div id="delegationStatusCard" class="bg-white rounded-xl shadow p-4 mb-4">
+        <p class="text-gray-500 text-sm text-center">加载中...</p>
+      </div>
+      <div id="mailingInfo" class="hidden bg-white rounded-xl shadow p-4"></div>
+    </div>
+
+    <!-- New Delegation Tab -->
+    <div id="studentNew" class="hidden">
+      <!-- Step Indicator -->
+      <div class="flex justify-between mb-6" id="stepIndicator">
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-active inline-flex items-center justify-center text-sm font-bold mx-auto">1</div><span class="text-xs mt-1 block">确认信息</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">2</div><span class="text-xs mt-1 block">邮寄地址</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">3</div><span class="text-xs mt-1 block">电子签名</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">4</div><span class="text-xs mt-1 block">身份证</span></div>
+      </div>
+
+      <!-- Step 1: Personal Info -->
+      <div id="formStep1" class="bg-white rounded-xl shadow p-4">
+        <h3 class="font-bold text-lg mb-4">确认个人信息</h3>
+        <div class="space-y-3">
+          <div><label class="text-sm text-gray-600">学号</label><input id="f1_studentId" class="w-full border rounded px-3 py-2 bg-gray-50" readonly></div>
+          <div><label class="text-sm text-gray-600">姓名</label><input id="f1_name" class="w-full border rounded px-3 py-2 bg-gray-50" readonly></div>
+          <div><label class="text-sm text-gray-600">班级</label><input id="f1_class" class="w-full border rounded px-3 py-2 bg-gray-50" readonly></div>
+          <div><label class="text-sm text-gray-600">宿舍号 <span class="text-red-500">*</span></label><input id="f1_dormitory" placeholder="如：1号楼301" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">联系电话 <span class="text-red-500">*</span></label><input id="f1_phone" type="tel" placeholder="手机号" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">微信号/QQ号 <span class="text-red-500">*</span></label><input id="f1_wechat" placeholder="用于接收快递单号" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">领取内容</label>
+            <select id="f1_certType" class="w-full border rounded px-3 py-2">
+              <option value="both">毕业证 + 学位证</option>
+              <option value="graduation">仅毕业证</option>
+              <option value="degree">仅学位证</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="goToStep(2)" class="w-full mt-4 bg-blue-600 text-white py-2.5 rounded-lg font-medium">下一步</button>
+      </div>
+
+      <!-- Step 2: Mailing Address -->
+      <div id="formStep2" class="hidden bg-white rounded-xl shadow p-4">
+        <h3 class="font-bold text-lg mb-4">填写邮寄地址</h3>
+        <div class="space-y-3">
+          <div><label class="text-sm text-gray-600">收件人姓名 <span class="text-red-500">*</span></label><input id="f2_recipient" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">收件人电话 <span class="text-red-500">*</span></label><input id="f2_phone" type="tel" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">收件人身份证号</label><input id="f2_idcard" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">收件地址 <span class="text-red-500">*</span></label><textarea id="f2_address" rows="3" placeholder="省/市/区/详细地址（精确到门牌号）" class="w-full border rounded px-3 py-2"></textarea></div>
+          <div><label class="text-sm text-gray-600">预计离校日期</label><input id="f2_departure" type="date" class="w-full border rounded px-3 py-2"></div>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button onclick="goToStep(1)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
+          <button onclick="saveDraftAndGoTo(3)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">下一步</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Signature -->
+      <div id="formStep3" class="hidden bg-white rounded-xl shadow p-4">
+        <h3 class="font-bold text-lg mb-2">电子签名</h3>
+        <p class="text-sm text-gray-500 mb-3">在下方框内用鼠标按住拖动签名</p>
+        <div class="border-2 border-gray-400 rounded-lg bg-white overflow-hidden" style="width:100%;height:200px">
+          <canvas id="signatureCanvas" style="width:100%;height:200px;cursor:crosshair"></canvas>
+        </div>
+        <button onclick="clearSignature()" class="mt-2 text-sm text-blue-600">清除重签</button>
+        <div class="flex gap-3 mt-4">
+          <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
+          <button onclick="saveSignatureAndNext()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">保存并继续</button>
+        </div>
+      </div>
+
+      <!-- Step 4: ID Card -->
+      <div id="formStep4" class="hidden bg-white rounded-xl shadow p-4">
+        <h3 class="font-bold text-lg mb-4">上传身份证</h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm font-medium mb-2">身份证正面（人像面）</p>
+            <div class="upload-zone rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('idFrontInput').click()">
+              <div id="idFrontPreview" class="text-gray-400">📷 点击上传</div>
+              <img id="idFrontImg" class="hidden max-h-40 mx-auto rounded" />
+            </div>
+            <input id="idFrontInput" type="file" accept="image/*" onchange="previewImage(this, 'idFrontImg', 'idFrontPreview')" class="hidden">
+          </div>
+          <div>
+            <p class="text-sm font-medium mb-2">身份证反面（国徽面）</p>
+            <div class="upload-zone rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('idBackInput').click()">
+              <div id="idBackPreview" class="text-gray-400">📷 点击上传</div>
+              <img id="idBackImg" class="hidden max-h-40 mx-auto rounded" />
+            </div>
+            <input id="idBackInput" type="file" accept="image/*" onchange="previewImage(this, 'idBackImg', 'idBackPreview')" class="hidden">
+          </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button onclick="goToStep(3)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
+          <button onclick="submitDelegation()" id="submitBtn" class="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium">提交委托</button>
+        </div>
+      </div>
+
+      <!-- (Step 5 removed - video is uploaded by monitor after mailing) -->
+    </div>
+
+    <!-- Detail Tab -->
+    <div id="studentDetail" class="hidden">
+      <div id="detailContent" class="bg-white rounded-xl shadow p-4">
+        <p class="text-gray-500 text-sm text-center">请先提交委托</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Tab Bar (mobile) -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white border-t flex md:hidden">
+    <button onclick="switchStudentTab('dashboard')" class="flex-1 py-3 text-xs text-center text-gray-500">📋 我的委托</button>
+    <button onclick="switchStudentTab('new')" class="flex-1 py-3 text-xs text-center text-gray-500">✏️ 新建委托</button>
+    <button onclick="switchStudentTab('detail')" class="flex-1 py-3 text-xs text-center text-gray-500">📄 详情</button>
+  </div>
+  <div class="h-16 md:hidden"></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- MONITOR VIEW -->
+<!-- ============================================================ -->
+<div id="monitorView" class="hidden min-h-screen">
+  <!-- Sidebar + Content -->
+  <div class="flex">
+    <!-- Sidebar -->
+    <div class="w-56 bg-gray-900 text-white min-h-screen fixed left-0 top-0 p-4 desktop-only">
+      <h2 class="text-lg font-bold mb-6">🎓 管理后台</h2>
+      <nav class="space-y-1">
+        <button onclick="switchMonitorTab('dashboard')" id="mtab-dashboard" class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-800 bg-gray-800">📊 仪表盘</button>
+        <button onclick="switchMonitorTab('inspections')" id="mtab-inspections" class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-800">🏠 宿舍验收</button>
+        <button onclick="switchMonitorTab('mailing')" id="mtab-mailing" class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-800">📦 邮寄管理</button>
+        <button onclick="exportExcel()" class="w-full text-left px-3 py-2 rounded text-sm hover:bg-gray-800">📥 导出Excel</button>
+      </nav>
+      <div class="absolute bottom-4 left-4 text-xs text-gray-500">
+        <span id="monitorNameDisplay"></span>
+        <button onclick="logout()" class="ml-2 text-red-400 hover:text-red-300">退出</button>
+      </div>
+    </div>
+    <!-- Mobile header -->
+    <div class="mobile-only fixed top-0 left-0 right-0 bg-gray-900 text-white px-4 py-3 z-10 flex justify-between items-center">
+      <span class="font-bold">🎓 管理后台</span>
+      <button onclick="logout()" class="text-sm text-red-400">退出</button>
+    </div>
+    <!-- Main Content -->
+    <!-- Mobile tab bar -->
+    <div class="md:hidden fixed top-10 left-0 right-0 bg-white border-b z-10 flex overflow-x-auto">
+      <button onclick="switchMonitorTab('dashboard')" class="flex-1 py-2 text-xs font-medium text-center whitespace-nowrap px-2" id="mbtab-dashboard">📊 仪表盘</button>
+      <button onclick="switchMonitorTab('inspections')" class="flex-1 py-2 text-xs font-medium text-center whitespace-nowrap px-2" id="mbtab-inspections">🏠 宿舍验收</button>
+      <button onclick="switchMonitorTab('mailing')" class="flex-1 py-2 text-xs font-medium text-center whitespace-nowrap px-2" id="mbtab-mailing">📦 邮寄管理</button>
+      <button onclick="exportExcel()" class="flex-1 py-2 text-xs font-medium text-center whitespace-nowrap px-2">📥 导出</button>
+    </div>
+
+    <div class="flex-1 md:ml-56 p-4 md:p-6 mt-20 md:mt-0">
+      <!-- Dashboard Tab -->
+      <div id="monitorDashboard">
+        <h1 class="text-2xl font-bold mb-4">仪表盘</h1>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6" id="statCards">
+          <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold" id="statTotal">-</p><p class="text-xs text-gray-500">总委托数</p></div>
+          <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-blue-600" id="statSubmitted">-</p><p class="text-xs text-gray-500">已提交</p></div>
+          <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-green-600" id="statMailed">-</p><p class="text-xs text-gray-500">已邮寄</p></div>
+          <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-orange-600" id="statPending">-</p><p class="text-xs text-gray-500">待处理</p></div>
+        </div>
+        <div class="bg-white rounded-xl shadow overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left">学号</th><th class="px-4 py-2 text-left">姓名</th><th class="px-4 py-2 text-left">班级</th><th class="px-4 py-2 text-left">宿舍</th><th class="px-4 py-2 text-left">状态</th><th class="px-4 py-2 text-left">操作</th></tr></thead>
+            <tbody id="delegationTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Inspections Tab -->
+      <div id="monitorInspections" class="hidden">
+        <h1 class="text-2xl font-bold mb-4">宿舍验收</h1>
+        <div id="inspectionList" class="space-y-3"></div>
+      </div>
+
+      <!-- Mailing Tab -->
+      <div id="monitorMailing" class="hidden">
+        <h1 class="text-2xl font-bold mb-4">邮寄管理</h1>
+        <div id="mailingList" class="space-y-3"></div>
+      </div>
+
+      <!-- Detail Modal -->
+      <div id="detailModal" class="hidden fixed inset-0 bg-black/50 z-20 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" id="detailModalContent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SUPABASE CONFIG — 替换为你的项目信息 -->
+<!-- ============================================================ -->
+<script>
+// ⚠️ 请在 Supabase 项目中获取以下信息并替换
+const SUPABASE_URL = 'https://uctvjsrwkffptixcnchz.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjdHZqc3J3a2ZmcHRpeGNuY2h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyOTExMzIsImV4cCI6MjA5Nzg2NzEzMn0.oZcf-ooKbkBRpDBBRF6_DvsublvSvjuiVMKxZSgznkw';
+
+let currentUser = null;
+let currentDelegation = null;
+let sigCanvas = null, sigCtx = null, sigDrawing = false;
+let activeStudentTab = 'dashboard';
+let activeMonitorTab = 'dashboard';
+let formData = {};
+
+// ============================================================
+// INIT
+// ============================================================
+function initSupabase() {
+  try {
+    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e) {
+    console.error('Supabase 初始化失败:', e.message);
+  }
+}
+
+function checkAuth() {
+  const saved = localStorage.getItem('grad_user');
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    showView();
+  }
+}
+
+function showView() {
+  document.getElementById('loginView').classList.add('hidden');
+  if (currentUser.role === 'monitor' || currentUser.role === 'admin') {
+    document.getElementById('monitorView').classList.remove('hidden');
+    document.getElementById('studentView').classList.add('hidden');
+    document.getElementById('monitorNameDisplay').textContent = currentUser.name;
+    switchMonitorTab('dashboard');
+  } else {
+    document.getElementById('monitorView').classList.add('hidden');
+    document.getElementById('studentView').classList.remove('hidden');
+    document.getElementById('studentNameDisplay').textContent = currentUser.name;
+    document.getElementById('studentIdDisplay').textContent = currentUser.student_id;
+    switchStudentTab('dashboard');
+  }
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  initSupabase();
+  const studentId = document.getElementById('loginStudentId').value.trim();
+  const name = document.getElementById('loginName').value.trim();
+  const errEl = document.getElementById('loginError');
+
+  if (!studentId || !name) {
+    errEl.textContent = '请输入学号和姓名';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('student_id', studentId)
+    .eq('name', name)
+    .eq('is_active', true)
+    .single();
+
+  if (error || !data) {
+    errEl.textContent = '学号或姓名错误，或账号未激活';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  currentUser = data;
+  localStorage.setItem('grad_user', JSON.stringify(data));
+
+  // Record login
+  await supabase.from('activity_logs').insert({
+    student_id: data.id,
+    action: 'login',
+    details: {}
+  });
+
+  showView();
+}
+
+function logout() {
+  localStorage.removeItem('grad_user');
+  currentUser = null;
+  currentDelegation = null;
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('studentView').classList.add('hidden');
+  document.getElementById('monitorView').classList.add('hidden');
+}
+
+// ============================================================
+// STUDENT: TABS
+// ============================================================
+function switchStudentTab(tab) {
+  activeStudentTab = tab;
+  ['dashboard','new','detail'].forEach(t => {
+    document.getElementById('student' + (t==='dashboard'?'Dashboard':t==='new'?'New':'Detail')).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById('stab-' + t);
+    if (btn) {
+      btn.classList.toggle('tab-active', t === tab);
+      btn.classList.toggle('text-blue-600', t === tab);
+      btn.classList.toggle('text-gray-500', t !== tab);
+    }
+  });
+  if (tab === 'dashboard') loadStudentDashboard();
+  if (tab === 'new') initNewForm();
+  if (tab === 'detail') loadStudentDetail();
+}
+
+// ============================================================
+// STUDENT: DASHBOARD
+// ============================================================
+async function loadStudentDashboard() {
+  if (!currentUser) return;
+  const { data, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .eq('student_id', currentUser.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  const card = document.getElementById('delegationStatusCard');
+  const mailDiv = document.getElementById('mailingInfo');
+
+  if (!data) {
+    card.innerHTML = '<div class="text-center py-6"><p class="text-gray-400 text-lg mb-2">📭</p><p class="text-gray-500">暂无委托记录</p><p class="text-sm text-gray-400 mt-1">请点击「新建委托」开始</p></div>';
+    mailDiv.classList.add('hidden');
+    return;
+  }
+
+  currentDelegation = data;
+
+  const statusMap = {
+    'draft': '草稿', 'submitted': '已提交', 'confirmed': '已确认',
+    'inspection_done': '宿舍已验收', 'mailed': '已邮寄', 'in_transit': '运输中',
+    'delivered': '已签收', 'cancelled': '已取消'
+  };
+  const statusColors = {
+    'draft': 'bg-gray-100 text-gray-600', 'submitted': 'bg-blue-100 text-blue-600',
+    'inspection_done': 'bg-yellow-100 text-yellow-700', 'mailed': 'bg-green-100 text-green-600',
+    'delivered': 'bg-green-200 text-green-800', 'cancelled': 'bg-red-100 text-red-600'
+  };
+
+  card.innerHTML = `
+    <div class="flex justify-between items-center mb-3">
+      <span class="font-bold">委托状态</span>
+      <span class="px-3 py-1 rounded-full text-xs font-bold ${statusColors[data.status] || 'bg-gray-100 text-gray-600'}">${statusMap[data.status] || data.status}</span>
+    </div>
+    <div class="text-sm text-gray-600 space-y-1">
+      <p>证书类型：${data.certificate_types === 'both' ? '毕业证+学位证' : data.certificate_types === 'graduation' ? '仅毕业证' : '仅学位证'}</p>
+      <p>提交时间：${data.submitted_at ? new Date(data.submitted_at).toLocaleString('zh-CN') : '未提交'}</p>
+    </div>
+    ${data.status === 'draft' ? '<button onclick="resumeDraft()" class="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium">继续编辑草稿</button>' : ''}
+    ${data.status === 'rejected' ? `<div class="mt-3 bg-red-50 border border-red-200 rounded p-2 text-sm text-red-700">审核未通过：${data.notes || '请修改后重提'}</div><button onclick="resubmitRejected()" class="mt-2 w-full bg-orange-600 text-white py-2 rounded-lg text-sm font-medium">修改并重新提交</button>` : ''}
+  `;
+
+  if (data.tracking_number) {
+    mailDiv.classList.remove('hidden');
+    mailDiv.innerHTML = `
+      <h3 class="font-bold mb-2">📦 快递信息</h3>
+      <p class="text-sm">快递公司：${data.courier_company || '-'}</p>
+      <p class="text-sm">快递单号：<span class="font-mono font-bold text-blue-600">${data.tracking_number}</span></p>
+      <p class="text-sm">寄出时间：${data.mailed_at ? new Date(data.mailed_at).toLocaleString('zh-CN') : '-'}</p>
+    `;
+  } else {
+    mailDiv.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// STUDENT: NEW FORM
+// ============================================================
+async function resumeDraft() {
+  if (!currentDelegation || (currentDelegation.status !== 'draft' && currentDelegation.status !== 'rejected')) return;
+  switchStudentTab('new');
+  initNewForm(currentDelegation);
+}
+
+async function resubmitRejected() {
+  if (!currentDelegation || currentDelegation.status !== 'rejected') return;
+  // Reset status to draft so it can be edited and resubmitted
+  await supabase.from('delegations').update({ status: 'draft', notes: currentDelegation.notes }).eq('id', currentDelegation.id);
+  currentDelegation.status = 'draft';
+  switchStudentTab('new');
+  initNewForm(currentDelegation);
+}
+
+function initNewForm(existingDelegation) {
+  formData = {};
+  currentDelegation = existingDelegation || null;
+
+  // Pre-fill from existing delegation or user info
+  const pi = existingDelegation ? (existingDelegation.personal_info || {}) : {};
+  const ma = existingDelegation ? (existingDelegation.mailing_address || {}) : {};
+  const certType = existingDelegation ? existingDelegation.certificate_types : 'both';
+
+  document.getElementById('f1_studentId').value = pi.student_id || currentUser.student_id;
+  document.getElementById('f1_name').value = pi.name || currentUser.name;
+  document.getElementById('f1_class').value = pi.class_name || currentUser.class_name || '';
+  document.getElementById('f1_dormitory').value = pi.dormitory || currentUser.dormitory || '';
+  document.getElementById('f1_phone').value = pi.phone || currentUser.phone || '';
+  document.getElementById('f1_wechat').value = pi.wechat_qq || '';
+  document.getElementById('f1_certType').value = certType;
+
+  document.getElementById('f2_recipient').value = ma.recipient_name || '';
+  document.getElementById('f2_phone').value = ma.phone || '';
+  document.getElementById('f2_idcard').value = ma.id_card || '';
+  document.getElementById('f2_address').value = ma.address || '';
+  document.getElementById('f2_departure').value = ma.departure_date || '';
+
+  goToStep(1);
+}
+
+function initSignatureCanvas() {
+  sigCanvas = document.getElementById('signatureCanvas');
+  if (!sigCanvas) return;
+  const r = sigCanvas.getBoundingClientRect();
+  if (r.width < 10) { setTimeout(initSignatureCanvas, 200); return; }
+  sigCanvas.width = r.width;
+  sigCanvas.height = r.height;
+  sigCtx = sigCanvas.getContext('2d');
+  sigCtx.fillStyle = '#fff';
+  sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
+  sigCtx.strokeStyle = '#000';
+  sigCtx.lineWidth = 2;
+  sigCtx.lineCap = 'round';
+
+  sigCanvas.onmousedown = e => {
+    sigDrawing = true;
+    const rect = sigCanvas.getBoundingClientRect();
+    sigCtx.beginPath();
+    sigCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+  };
+  sigCanvas.onmousemove = e => {
+    if (!sigDrawing) return;
+    const rect = sigCanvas.getBoundingClientRect();
+    sigCtx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    sigCtx.stroke();
+  };
+  sigCanvas.onmouseup = sigCanvas.onmouseleave = () => { sigDrawing = false; };
+
+  sigCanvas.ontouchstart = e => {
+    e.preventDefault();
+    sigDrawing = true;
+    const rect = sigCanvas.getBoundingClientRect();
+    sigCtx.beginPath();
+    sigCtx.moveTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+  };
+  sigCanvas.ontouchmove = e => {
+    e.preventDefault();
+    if (!sigDrawing) return;
+    const rect = sigCanvas.getBoundingClientRect();
+    sigCtx.lineTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
+    sigCtx.stroke();
+  };
+  sigCanvas.ontouchend = () => { sigDrawing = false; };
+}
+
+async function saveDraftAndGoTo(step) {
+  const pi = {
+    student_id: document.getElementById('f1_studentId').value,
+    name: document.getElementById('f1_name').value,
+    class_name: document.getElementById('f1_class').value,
+    dormitory: document.getElementById('f1_dormitory').value,
+    phone: document.getElementById('f1_phone').value,
+    wechat_qq: document.getElementById('f1_wechat').value
+  };
+  const ma = {
+    recipient_name: document.getElementById('f2_recipient').value,
+    phone: document.getElementById('f2_phone').value,
+    id_card: document.getElementById('f2_idcard').value,
+    address: document.getElementById('f2_address').value,
+    departure_date: document.getElementById('f2_departure').value
+  };
+
+  if (!currentDelegation) {
+    const { data, error } = await supabase.from('delegations').insert({
+      student_id: currentUser.id, status: 'draft',
+      personal_info: pi, mailing_address: ma,
+      certificate_types: document.getElementById('f1_certType').value
+    }).select().single();
+    if (!error) currentDelegation = data;
+  } else {
+    await supabase.from('delegations').update({
+      personal_info: pi, mailing_address: ma,
+      certificate_types: document.getElementById('f1_certType').value,
+      updated_at: new Date().toISOString()
+    }).eq('id', currentDelegation.id);
+  }
+  goToStep(step);
+}
+
+function goToStep(step) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('formStep' + i).classList.toggle('hidden', i !== step);
+    const dot = document.querySelector(`#stepIndicator > div:nth-child(${i}) > div`);
+    if (dot) {
+      dot.className = 'w-8 h-8 rounded-full inline-flex items-center justify-center text-sm font-bold mx-auto';
+      dot.classList.add(step > i ? 'step-done' : step === i ? 'step-active' : 'step-pending');
+    }
+  }
+  if (step === 3) setTimeout(initSignatureCanvas, 300);
+}
+
+function clearSignature() {
+  if (sigCtx && sigCanvas) {
+    sigCtx.fillStyle = '#fff';
+    sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
+    sigCtx.strokeStyle = '#000';
+  }
+}
+
+async function saveSignatureAndNext() {
+  if (!sigCanvas) { alert('签名组件未初始化'); return; }
+  // Check if canvas is empty (all white)
+  const imgData = sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height).data;
+  let hasContent = false;
+  for (let i = 0; i < imgData.length; i += 4) {
+    if (imgData[i] < 250 || imgData[i+1] < 250 || imgData[i+2] < 250) { hasContent = true; break; }
+  }
+  if (!hasContent) { alert('请先在框内签名'); return; }
+
+  const dataURL = sigCanvas.toDataURL('image/png');
+  const blob = await (await fetch(dataURL)).blob();
+
+  // Create draft first if needed
+  if (!currentDelegation) {
+    const { data, error } = await supabase.from('delegations').insert({
+      student_id: currentUser.id,
+      status: 'draft',
+      personal_info: {},
+      mailing_address: {}
+    }).select().single();
+    if (error) { alert('创建失败: ' + error.message); return; }
+    currentDelegation = data;
+  }
+
+  const path = `${currentDelegation.id}/signature.png`;
+  const { error } = await supabase.storage.from('signatures').upload(path, blob, { upsert: true, contentType: 'image/png' });
+  if (error) { alert('签名上传失败: ' + error.message); return; }
+
+  const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(path);
+  await supabase.from('delegations').update({ signature_url: urlData.publicUrl }).eq('id', currentDelegation.id);
+  goToStep(4);
+}
+
+function previewImage(input, imgId, placeholderId) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById(placeholderId).classList.add('hidden');
+    const img = document.getElementById(imgId);
+    img.src = e.target.result;
+    img.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewVideo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('videoPreview').classList.add('hidden');
+  const video = document.getElementById('videoPlayer');
+  video.src = URL.createObjectURL(file);
+  video.classList.remove('hidden');
+}
+
+async function submitDelegation() {
+  const submitBtn = document.getElementById('submitBtn');
+  submitBtn.disabled = true;
+  submitBtn.textContent = '提交中...';
+
+  // 清理旧委托（draft/rejected/superseded），只保留最后一条有效记录
+  await supabase.from('delegations').update({ status: 'superseded', updated_at: new Date().toISOString() })
+    .eq('student_id', currentUser.id).in('status', ['draft','submitted','rejected']);
+
+  // Create draft if not exists
+  if (!currentDelegation) {
+    const { data, error } = await supabase.from('delegations').insert({
+      student_id: currentUser.id,
+      status: 'draft',
+      personal_info: {},
+      mailing_address: {}
+    }).select().single();
+    if (error) { alert('创建失败: ' + error.message); submitBtn.disabled = false; submitBtn.textContent = '提交委托'; return; }
+    currentDelegation = data;
+  }
+
+  // Collect form data
+  const personalInfo = {
+    student_id: document.getElementById('f1_studentId').value,
+    name: document.getElementById('f1_name').value,
+    class_name: document.getElementById('f1_class').value,
+    dormitory: document.getElementById('f1_dormitory').value,
+    phone: document.getElementById('f1_phone').value,
+    wechat_qq: document.getElementById('f1_wechat').value
+  };
+
+  const mailingAddress = {
+    recipient_name: document.getElementById('f2_recipient').value,
+    phone: document.getElementById('f2_phone').value,
+    id_card: document.getElementById('f2_idcard').value,
+    address: document.getElementById('f2_address').value,
+    departure_date: document.getElementById('f2_departure').value
+  };
+
+  if (!personalInfo.dormitory || !personalInfo.phone || !personalInfo.wechat_qq) {
+    alert('请填写完整的个人信息（宿舍号、电话、微信号为必填）');
+    submitBtn.disabled = false;
+    submitBtn.textContent = '提交委托';
+    return;
+  }
+  if (!mailingAddress.recipient_name || !mailingAddress.phone || !mailingAddress.address) {
+    alert('请填写完整的邮寄地址');
+    submitBtn.disabled = false;
+    submitBtn.textContent = '提交委托';
+    return;
+  }
+
+  // Upload ID card front
+  const idFrontFile = document.getElementById('idFrontInput').files[0];
+  const idBackFile = document.getElementById('idBackInput').files[0];
+  // video upload is handled by monitor after mailing
+
+  let idFrontUrl = null, idBackUrl = null;
+
+  try {
+    if (idFrontFile) {
+      const path = `${currentUser.student_id}/front.${idFrontFile.name.split('.').pop()}`;
+      await supabase.storage.from('id-cards').upload(path, idFrontFile, { upsert: true });
+      const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
+      idFrontUrl = data.publicUrl;
+    }
+    if (idBackFile) {
+      const path = `${currentUser.student_id}/back.${idBackFile.name.split('.').pop()}`;
+      await supabase.storage.from('id-cards').upload(path, idBackFile, { upsert: true });
+      const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
+      idBackUrl = data.publicUrl;
+    }
+  } catch (e) {
+    alert('文件上传失败: ' + e.message);
+    submitBtn.disabled = false;
+    submitBtn.textContent = '提交委托';
+    return;
+  }
+
+  // Update delegation
+  const updates = {
+    status: 'submitted',
+    submitted_at: new Date().toISOString(),
+    personal_info: personalInfo,
+    mailing_address: mailingAddress,
+    certificate_types: document.getElementById('f1_certType').value,
+    updated_at: new Date().toISOString()
+  };
+  if (idFrontUrl) updates.id_card_front_url = idFrontUrl;
+  if (idBackUrl) updates.id_card_back_url = idBackUrl;
+  const { error } = await supabase.from('delegations').update(updates).eq('id', currentDelegation.id);
+  if (error) { alert('提交失败: ' + error.message); submitBtn.disabled = false; submitBtn.textContent = '提交委托'; return; }
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id,
+    delegation_id: currentDelegation.id,
+    action: 'delegation_submitted',
+    details: {}
+  });
+
+  alert('委托提交成功！');
+  switchStudentTab('dashboard');
+  submitBtn.disabled = false;
+  submitBtn.textContent = '提交委托';
+}
+
+// ============================================================
+// STUDENT: DETAIL
+// ============================================================
+async function loadStudentDetail() {
+  const container = document.getElementById('detailContent');
+  if (!currentDelegation) {
+    const { data, error } = await supabase
+      .from('delegations')
+      .select('*')
+      .eq('student_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    currentDelegation = data;
+  }
+
+  if (!currentDelegation) {
+    container.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">暂无委托记录</p>';
+    return;
+  }
+
+  const d = currentDelegation;
+  const pi = d.personal_info || {};
+  const ma = d.mailing_address || {};
+
+  container.innerHTML = `
+    <h3 class="font-bold text-lg mb-3">委托详情</h3>
+    <div class="text-sm space-y-2">
+      <p><span class="text-gray-500">状态：</span><span class="font-bold">${d.status}</span></p>
+      <p><span class="text-gray-500">证书：</span>${d.certificate_types === 'both' ? '毕业证+学位证' : d.certificate_types}</p>
+      <div class="bg-gray-50 rounded p-2 space-y-1">
+        <p class="font-bold text-xs text-gray-600">个人信息</p>
+        <p>学号：${pi.student_id || '-'}</p>
+        <p>姓名：${pi.name || '-'}</p>
+        <p>班级：${pi.class_name || '-'}</p>
+        <p>宿舍：${pi.dormitory || '-'}</p>
+        <p>电话：${pi.phone || '-'}</p>
+        <p>微信/QQ：${pi.wechat_qq || '-'}</p>
+      </div>
+      <div class="bg-gray-50 rounded p-2 space-y-1">
+        <p class="font-bold text-xs text-gray-600">邮寄信息</p>
+        <p>收件人：${ma.recipient_name || '-'}</p>
+        <p>电话：${ma.phone || '-'}</p>
+        <p>地址：${ma.address || '-'}</p>
+        <p>预计离校：${ma.departure_date || '-'}</p>
+      </div>
+      ${d.signature_url ? `<p><span class="text-gray-500">签名：</span><img src="${d.signature_url}" class="h-16 border rounded"></p>` : ''}
+      ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded"></p>` : ''}
+      ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded"></p>` : ''}
+      ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
+      ${d.tracking_number ? `<p><span class="text-gray-500">快递单号：</span><span class="font-mono font-bold text-blue-600">${d.tracking_number}（${d.courier_company||''}）</span></p>` : ''}
+    </div>
+  `;
+}
+
+// ============================================================
+// MONITOR: TABS
+// ============================================================
+function switchMonitorTab(tab) {
+  activeMonitorTab = tab;
+  document.getElementById('monitorDashboard').classList.toggle('hidden', tab !== 'dashboard');
+  document.getElementById('monitorInspections').classList.toggle('hidden', tab !== 'inspections');
+  document.getElementById('monitorMailing').classList.toggle('hidden', tab !== 'mailing');
+  document.getElementById('detailModal').classList.add('hidden');
+
+  ['dashboard','inspections','mailing'].forEach(t => {
+    const btn = document.getElementById('mtab-' + t);
+    if (btn) btn.classList.toggle('bg-gray-800', t === tab);
+    const mbtn = document.getElementById('mbtab-' + t);
+    if (mbtn) mbtn.classList.toggle('text-blue-600', t === tab);
+    if (mbtn) mbtn.classList.toggle('border-b-2', t === tab);
+    if (mbtn) mbtn.classList.toggle('border-blue-600', t === tab);
+  });
+
+  if (tab === 'dashboard') loadMonitorDashboard();
+  if (tab === 'inspections') loadInspections();
+  if (tab === 'mailing') loadMailing();
+}
+
+// ============================================================
+// MONITOR: DASHBOARD
+// ============================================================
+async function loadMonitorDashboard() {
+  const { data: all, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error('查询失败:', error); return; }
+  if (!all) { console.error('查询无返回'); return; }
+
+  // 批量获取学生信息
+  const studentIds = [...new Set(all.map(d => d.student_id))];
+  const { data: students } = await supabase
+    .from('students')
+    .select('id, name, student_id, class_name')
+    .in('id', studentIds);
+  const stuMap = {};
+  if (students) students.forEach(s => { stuMap[s.id] = s; });
+
+  const active = all.filter(d => d.status !== 'superseded' && d.status !== 'draft' && d.status !== 'cancelled');
+  const total = active.length;
+  const submitted = active.filter(d => d.status === 'submitted').length;
+  const mailed = active.filter(d => d.status === 'mailed' || d.status === 'in_transit' || d.status === 'delivered').length;
+  const pending = submitted;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statSubmitted').textContent = submitted;
+  document.getElementById('statMailed').textContent = mailed;
+  document.getElementById('statPending').textContent = pending;
+
+  const statusMap = {
+    'draft': '草稿', 'submitted': '已提交', 'confirmed': '已审核',
+    'rejected': '已打回', 'superseded': '已覆盖',
+    'inspection_done': '已验收', 'mailed': '已邮寄', 'in_transit': '运输中',
+    'delivered': '已签收', 'cancelled': '已取消'
+  };
+
+  const tbody = document.getElementById('delegationTableBody');
+  tbody.innerHTML = active.map(d => {
+    const s = stuMap[d.student_id] || {};
+    return `
+    <tr class="border-t hover:bg-gray-50 cursor-pointer" onclick="viewDelegationDetail('${d.id}')">
+      <td class="px-4 py-2">${s.student_id || '-'}</td>
+      <td class="px-4 py-2">${s.name || '-'}</td>
+      <td class="px-4 py-2">${s.class_name || '-'}</td>
+      <td class="px-4 py-2">${(d.personal_info || {}).dormitory || '-'}</td>
+      <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-xs ${d.status === 'submitted' ? 'bg-yellow-100 text-yellow-700' : d.status === 'mailed' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}">${statusMap[d.status] || d.status}</span></td>
+      <td class="px-4 py-2"><button class="text-blue-600 text-xs hover:underline" onclick="event.stopPropagation();viewDelegationDetail('${d.id}')">查看</button></td>
+    </tr>
+  `;}).join('');
+}
+
+// ============================================================
+// MONITOR: DELEGATION DETAIL
+// ============================================================
+async function viewDelegationDetail(id) {
+  const { data: d, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !d) return;
+
+  // 获取学生信息
+  const { data: stu } = await supabase
+    .from('students')
+    .select('name, student_id, class_name, dormitory')
+    .eq('id', d.student_id)
+    .single();
+
+  const modal = document.getElementById('detailModal');
+  const content = document.getElementById('detailModalContent');
+
+  const statusMap = {
+    'draft': '草稿', 'submitted': '已提交', 'confirmed': '已审核',
+    'rejected': '已打回', 'superseded': '已覆盖',
+    'inspection_done': '已验收', 'mailed': '已邮寄', 'in_transit': '运输中',
+    'delivered': '已签收', 'cancelled': '已取消'
+  };
+
+  content.innerHTML = `
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h2 class="text-xl font-bold">${stu?.name} - ${stu?.student_id}</h2>
+        <p class="text-sm text-gray-500">${stu?.class_name} | ${(d.personal_info || {}).dormitory || '-'}</p>
+        <div class="flex gap-1 mt-1">
+          ${d.id_card_front_url && d.id_card_back_url ? `<button onclick="exportIdCardPDF('${d.id}')" class="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">导出身份证PDF</button>` : ''}
+          <button onclick="deleteDelegation('${d.id}')" class="text-xs bg-red-500 text-white px-2 py-0.5 rounded">删除记录</button>
+        </div>
+      </div>
+      <button onclick="document.getElementById('detailModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div><span class="text-xs text-gray-500">委托状态</span><p class="font-bold">${statusMap[d.status] || d.status}</p></div>
+      <div><span class="text-xs text-gray-500">证书类型</span><p>${d.certificate_types === 'both' ? '毕业证+学位证' : d.certificate_types}</p></div>
+    </div>
+
+    ${d.personal_info ? `
+    <div class="mb-3"><h4 class="text-sm font-bold mb-1">个人信息</h4>
+      <div class="bg-gray-50 rounded p-2 text-sm">
+        <p>电话：${d.personal_info.phone || '-'}</p>
+        <p>微信/QQ：${d.personal_info.wechat_qq || '-'}</p>
+        <p>宿舍：${d.personal_info.dormitory || '-'}</p>
+      </div>
+    </div>` : ''}
+
+    ${d.mailing_address ? `
+    <div class="mb-3"><h4 class="text-sm font-bold mb-1">邮寄地址</h4>
+      <div class="bg-gray-50 rounded p-2 text-sm">
+        <p>收件人：${d.mailing_address.recipient_name || '-'}</p>
+        <p>电话：${d.mailing_address.phone || '-'}</p>
+        <p>地址：${d.mailing_address.address || '-'}</p>
+        <p>预计离校：${d.mailing_address.departure_date || '-'}</p>
+      </div>
+    </div>` : ''}
+
+    ${d.signature_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">签名</h4><img src="${d.signature_url}" class="h-16 border rounded"></div>` : ''}
+    ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded"></div>` : ''}
+    ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded"></div>` : ''}
+    ${d.packaging_video_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">包装视频</h4><video src="${d.packaging_video_url}" controls class="w-full max-h-64 rounded"></video></div>` : ''}
+
+    <!-- Review Section (for submitted/pending delegations) -->
+    ${d.status === 'submitted' ? `
+    <div class="border-t pt-3 mt-4 bg-yellow-50 -mx-6 px-6 pb-2">
+      <h4 class="text-sm font-bold mb-2">🔍 审核委托</h4>
+      <div class="flex gap-2 mb-2">
+        <input id="reviewNote_${d.id}" placeholder="打回原因（审核通过可不填）" class="border rounded px-2 py-1 text-sm flex-1">
+      </div>
+      <div class="flex gap-2">
+        <button onclick="reviewDelegation('${d.id}','confirmed')" class="flex-1 bg-green-600 text-white px-3 py-1.5 rounded text-sm">审核通过</button>
+        <button onclick="reviewDelegation('${d.id}','rejected')" class="flex-1 bg-red-600 text-white px-3 py-1.5 rounded text-sm">打回修改</button>
+      </div>
+    </div>` : (d.status === 'rejected' ? `<div class="border-t pt-3 mt-4 bg-red-50 -mx-6 px-6 pb-2"><p class="text-sm text-red-700">已打回：${d.notes||'无原因'}</p></div>` : '')}
+
+    <!-- Inspection Section -->
+    <div class="border-t pt-3 mt-4">
+      <h4 class="text-sm font-bold mb-2">🏠 宿舍验收</h4>
+      <div class="flex gap-2 items-center">
+        <select id="inspectStatus_${d.id}" class="border rounded px-2 py-1 text-sm">
+          <option value="pending" ${d.inspection_status === 'pending' ? 'selected' : ''}>待验收</option>
+          <option value="pass" ${d.inspection_status === 'pass' ? 'selected' : ''}>通过</option>
+          <option value="fail" ${d.inspection_status === 'fail' ? 'selected' : ''}>未通过</option>
+        </select>
+        <input id="inspectNote_${d.id}" placeholder="验收备注" value="${d.inspection_notes || ''}" class="border rounded px-2 py-1 text-sm flex-1">
+        <button onclick="saveInspection('${d.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">保存</button>
+      </div>
+    </div>
+
+    <!-- Mailing Section -->
+    <div class="border-t pt-3 mt-4">
+      <h4 class="text-sm font-bold mb-2">📦 邮寄信息</h4>
+      <div class="space-y-2">
+        <div class="flex gap-2">
+          <select id="courier_${d.id}" class="border rounded px-2 py-1 text-sm flex-1">
+            <option value="">选择快递公司</option>
+            <option value="顺丰速运" ${d.courier_company === '顺丰速运' ? 'selected' : ''}>顺丰速运</option>
+            <option value="EMS" ${d.courier_company === 'EMS' ? 'selected' : ''}>EMS</option>
+            <option value="圆通速递" ${d.courier_company === '圆通速递' ? 'selected' : ''}>圆通速递</option>
+            <option value="中通快递" ${d.courier_company === '中通快递' ? 'selected' : ''}>中通快递</option>
+            <option value="韵达快递" ${d.courier_company === '韵达快递' ? 'selected' : ''}>韵达快递</option>
+            <option value="京东快递" ${d.courier_company === '京东快递' ? 'selected' : ''}>京东快递</option>
+          </select>
+          <input id="tracking_${d.id}" placeholder="快递单号" value="${d.tracking_number || ''}" class="border rounded px-2 py-1 text-sm flex-1">
+        </div>
+        <div class="mt-2">
+          <p class="text-xs text-gray-500 mb-1">📹 包装视频（建议30秒内，拍关键步骤即可，最大200MB）</p>
+          <input id="videoMail_${d.id}" type="file" accept="video/*" class="text-xs w-full">
+          ${d.packaging_video_url ? `<p class="text-xs text-green-600 mt-1">已上传</p>` : ''}
+        </div>
+        <button onclick="saveMailing('${d.id}')" class="mt-2 bg-green-600 text-white px-3 py-1 rounded text-sm">保存邮寄信息</button>
+      </div>
+    </div>
+  `;
+
+  modal.classList.remove('hidden');
+}
+
+async function reviewDelegation(id, newStatus) {
+  const note = document.getElementById('reviewNote_' + id)?.value || '';
+  if (newStatus === 'rejected' && !note) { alert('打回必须填写原因'); return; }
+
+  const updates = {
+    status: newStatus,
+    notes: note,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase.from('delegations').update(updates).eq('id', id);
+  if (error) { alert('操作失败: ' + error.message); return; }
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: newStatus === 'confirmed' ? 'review_approved' : 'review_rejected',
+    details: { note }
+  });
+
+  alert(newStatus === 'confirmed' ? '已审核通过' : '已打回修改');
+  document.getElementById('detailModal').classList.add('hidden');
+  switchMonitorTab(activeMonitorTab);
+}
+
+async function deleteDelegation(id) {
+  if (!confirm('确定要删除这条委托记录吗？此操作不可恢复！')) return;
+  const { error } = await supabase.from('delegations').update({
+    status: 'cancelled',
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+  if (error) { alert('删除失败: ' + error.message); return; }
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: 'delegation_deleted', details: {}
+  });
+  alert('已删除（标记为已取消）');
+  document.getElementById('detailModal').classList.add('hidden');
+  switchMonitorTab(activeMonitorTab);
+}
+
+async function exportIdCardPDF(id) {
+  const { data: d } = await supabase.from('delegations').select('id_card_front_url,id_card_back_url,personal_info').eq('id', id).single();
+  if (!d || !d.id_card_front_url || !d.id_card_back_url) { alert('缺少身份证照片'); return; }
+  const name = (d.personal_info || {}).name || 'student';
+
+  const loadImg = (url) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+
+  try {
+    const [front, back] = await Promise.all([loadImg(d.id_card_front_url), loadImg(d.id_card_back_url)]);
+
+    // Canvas: A4 ratio, both images stacked
+    const cw = 1240, ch = 1754; // A4 at 150dpi
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, cw, ch);
+
+    const margin = 80;
+    const availW = cw - margin * 2;
+    const imgH = availW * (front.height / front.width); // keep aspect ratio
+    const gap = 40;
+    const totalH = imgH * 2 + gap;
+    const startY = (ch - totalH) / 2;
+
+    ctx.drawImage(front, margin, startY, availW, imgH);
+    ctx.drawImage(back, margin, startY + imgH + gap, availW, imgH);
+
+    // Export via jsPDF as image-only
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    pdf.save(`${name}_idcard.pdf`);
+
+  } catch (e) {
+    alert('生成失败: ' + e.message);
+  }
+}
+
+async function saveInspection(id) {
+  const status = document.getElementById('inspectStatus_' + id).value;
+  const notes = document.getElementById('inspectNote_' + id).value;
+  const updates = {
+    inspection_status: status,
+    inspection_notes: notes,
+    inspected_by: currentUser.id,
+    inspected_at: new Date().toISOString(),
+    status: status === 'pass' ? 'inspection_done' : 'confirmed',
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase.from('delegations').update(updates).eq('id', id);
+  if (error) { alert('保存失败: ' + error.message); return; }
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: 'inspection_updated', details: { status, notes }
+  });
+
+  alert('验收状态已保存');
+  switchMonitorTab(activeMonitorTab);
+}
+
+async function saveMailing(id) {
+  const courier = document.getElementById('courier_' + id).value;
+  const tracking = document.getElementById('tracking_' + id).value;
+  if (!courier || !tracking) { alert('请选择快递公司并填写单号'); return; }
+
+  // Upload video if selected (with progress)
+  const videoInput = document.getElementById('videoMail_' + id);
+  let videoUrl = null;
+  if (videoInput && videoInput.files[0]) {
+    const file = videoInput.files[0];
+    if (file.size > 200 * 1024 * 1024) { alert('视频不能超过200MB'); return; }
+
+    const path = `${id}/packaging.${file.name.split('.').pop()}`;
+    // Show progress
+    const progDiv = document.createElement('div');
+    progDiv.className = 'mt-2';
+    progDiv.innerHTML = '<div class="bg-gray-200 rounded-full h-1.5"><div id="vidProgress" class="bg-blue-600 h-1.5 rounded-full" style="width:0%"></div></div><p class="text-xs text-gray-500 mt-0.5" id="vidText">上传中 0%</p>';
+    videoInput.parentNode.appendChild(progDiv);
+
+    const { error: ve } = await supabase.storage.from('videos').upload(path, file, {
+      upsert: true,
+      onUploadProgress: (progress) => {
+        const pct = Math.round((progress.loaded / progress.total) * 100);
+        const bar = document.getElementById('vidProgress');
+        const txt = document.getElementById('vidText');
+        if (bar) bar.style.width = pct + '%';
+        if (txt) txt.textContent = `上传中 ${pct}%（${(progress.loaded/1024/1024).toFixed(1)}MB / ${(progress.total/1024/1024).toFixed(1)}MB）`;
+      }
+    });
+
+    if (progDiv.parentNode) progDiv.remove();
+
+    if (!ve) {
+      const { data } = supabase.storage.from('videos').getPublicUrl(path);
+      videoUrl = data.publicUrl;
+    } else {
+      alert('视频上传失败: ' + ve.message);
+    }
+  }
+
+  const updates = {
+    courier_company: courier,
+    tracking_number: tracking,
+    mailed_at: new Date().toISOString(),
+    mailed_by: currentUser.id,
+    status: 'mailed',
+    updated_at: new Date().toISOString()
+  };
+  if (videoUrl) updates.packaging_video_url = videoUrl;
+
+  const { error } = await supabase.from('delegations').update(updates).eq('id', id);
+  if (error) { alert('保存失败: ' + error.message); return; }
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: 'mailing_updated', details: { courier, tracking }
+  });
+
+  alert('邮寄信息已保存' + (videoUrl ? '（含包装视频）' : ''));
+  switchMonitorTab(activeMonitorTab);
+}
+
+// ============================================================
+// MONITOR: INSPECTIONS LIST
+// ============================================================
+async function loadInspections() {
+  const { data, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .in('status', ['confirmed', 'inspection_done'])
+    .order('created_at', { ascending: false });
+
+  if (error) return;
+
+  // 获取学生信息
+  const sIds = [...new Set(data.map(d => d.student_id))];
+  const { data: stus } = await supabase.from('students').select('id,name,student_id').in('id', sIds);
+  const sm = {};
+  if (stus) stus.forEach(s => { sm[s.id] = s; });
+
+  const container = document.getElementById('inspectionList');
+  if (!data.length) { container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无待验收的委托</p>'; return; }
+
+  container.innerHTML = data.map(d => {
+    const s = sm[d.student_id] || {};
+    return `
+    <div class="bg-white rounded-xl shadow p-4">
+      <div class="flex justify-between items-center mb-2">
+        <div><span class="font-bold">${s.name}</span> <span class="text-sm text-gray-500">${s.student_id} | ${(d.personal_info||{}).dormitory||'-'}</span></div>
+        <span class="px-2 py-0.5 rounded text-xs ${d.inspection_status === 'pass' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${d.inspection_status === 'pass' ? '已通过' : d.inspection_status === 'fail' ? '未通过' : '待验收'}</span>
+      </div>
+      <div class="flex gap-2">
+        <select id="listInspStatus_${d.id}" class="border rounded px-2 py-1 text-xs">
+          <option value="pending" ${d.inspection_status === 'pending' ? 'selected' : ''}>待验收</option>
+          <option value="pass" ${d.inspection_status === 'pass' ? 'selected' : ''}>通过</option>
+          <option value="fail" ${d.inspection_status === 'fail' ? 'selected' : ''}>未通过</option>
+        </select>
+        <input id="listInspNote_${d.id}" placeholder="备注" value="${d.inspection_notes || ''}" class="border rounded px-2 py-1 text-xs flex-1">
+        <button onclick="saveInspection('${d.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs">保存</button>
+        <button onclick="viewDelegationDetail('${d.id}')" class="border px-3 py-1 rounded text-xs">详情</button>
+      </div>
+    </div>
+  `;}).join('');
+}
+
+// ============================================================
+// MONITOR: MAILING LIST
+// ============================================================
+async function loadMailing() {
+  const { data, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .in('status', ['inspection_done', 'mailed', 'in_transit', 'delivered'])
+    .order('created_at', { ascending: false });
+
+  if (error) return;
+
+  // 获取学生信息
+  const mIds = [...new Set(data.map(d => d.student_id))];
+  const { data: mstus } = await supabase.from('students').select('id,name,student_id').in('id', mIds);
+  const mm = {};
+  if (mstus) mstus.forEach(s => { mm[s.id] = s; });
+
+  const container = document.getElementById('mailingList');
+  if (!data.length) { container.innerHTML = '<p class="text-gray-500 text-center py-8">暂无待邮寄的委托</p>'; return; }
+
+  container.innerHTML = data.map(d => {
+    const s = mm[d.student_id] || {};
+    return `
+    <div class="bg-white rounded-xl shadow p-4">
+      <div class="flex justify-between items-center mb-2">
+        <div><span class="font-bold">${s.name}</span> <span class="text-sm text-gray-500">${s.student_id} | ${(d.mailing_address||{}).address||'地址缺失'}</span></div>
+        <span class="px-2 py-0.5 rounded text-xs ${d.tracking_number ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${d.tracking_number ? '已寄出' : '待寄出'}</span>
+      </div>
+      <div class="text-sm text-gray-600 mb-2">
+        ${d.tracking_number ? `<p>快递：${d.courier_company} | 单号：<span class="font-mono text-blue-600">${d.tracking_number}</span></p>` : '<p>尚未录入快递信息</p>'}
+      </div>
+      <div class="flex gap-2">
+        <select id="listCourier_${d.id}" class="border rounded px-2 py-1 text-xs">
+          <option value="">选择快递</option>
+          <option value="顺丰速运" ${d.courier_company==='顺丰速运'?'selected':''}>顺丰速运</option>
+          <option value="EMS" ${d.courier_company==='EMS'?'selected':''}>EMS</option>
+          <option value="圆通速递" ${d.courier_company==='圆通速递'?'selected':''}>圆通速递</option>
+          <option value="中通快递" ${d.courier_company==='中通快递'?'selected':''}>中通快递</option>
+        </select>
+        <input id="listTracking_${d.id}" placeholder="快递单号" value="${d.tracking_number || ''}" class="border rounded px-2 py-1 text-xs flex-1">
+        <button onclick="saveMailing('${d.id}')" class="bg-green-600 text-white px-3 py-1 rounded text-xs">保存</button>
+        <button onclick="viewDelegationDetail('${d.id}')" class="border px-3 py-1 rounded text-xs">详情</button>
+      </div>
+    </div>
+  `;}).join('');
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+async function exportExcel() {
+  const { data, error } = await supabase
+    .from('delegations')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data.length) { alert('暂无数据可导出'); return; }
+
+  const rows = data.map((d, i) => ({
+    '序号': i + 1,
+    '学号': (d.personal_info || {}).student_id || '',
+    '姓名': (d.personal_info || {}).name || '',
+    '班级': (d.personal_info || {}).class_name || '',
+    '宿舍号': (d.personal_info || {}).dormitory || '',
+    '联系电话': (d.personal_info || {}).phone || '',
+    '微信/QQ': (d.personal_info || {}).wechat_qq || '',
+    '收件人': (d.mailing_address || {}).recipient_name || '',
+    '收件电话': (d.mailing_address || {}).phone || '',
+    '收件地址': (d.mailing_address || {}).address || '',
+    '预计离校': (d.mailing_address || {}).departure_date || '',
+    '证书类型': d.certificate_types === 'both' ? '毕业证+学位证' : d.certificate_types,
+    '委托状态': d.status,
+    '验收状态': d.inspection_status || '未验收',
+    '快递公司': d.courier_company || '',
+    '快递单号': d.tracking_number || '',
+    '提交时间': d.submitted_at ? new Date(d.submitted_at).toLocaleString('zh-CN') : ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '委托列表');
+  XLSX.writeFile(wb, `委托管理导出_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id,
+    action: 'export_performed',
+    details: { row_count: data.length }
+  });
+}
+
+// ============================================================
+// STARTUP
+// ============================================================
+initSupabase();
+checkAuth();
+</script>
+</body>
+</html>
