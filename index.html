@@ -1094,7 +1094,9 @@ async function exportLetterPDF(id, type) {
   };
 
   try {
-    const imgs = await Promise.all(urls.map(loadImg));
+    // 逐张加载，避免并发超时
+    const imgs = [];
+    for (const u of urls) { imgs.push(await loadImg(u)); }
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = 210, pageH = 297;
@@ -1131,7 +1133,8 @@ async function exportIdCardPDF(id) {
   };
 
   try {
-    const [front, back] = await Promise.all([loadImg(d.id_card_front_url), loadImg(d.id_card_back_url)]);
+    const front = await loadImg(d.id_card_front_url);
+    const back = await loadImg(d.id_card_back_url);
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = 210, pageH = 297;
