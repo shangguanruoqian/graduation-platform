@@ -84,8 +84,7 @@
       <div class="flex justify-between mb-6" id="stepIndicator">
         <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-active inline-flex items-center justify-center text-sm font-bold mx-auto">1</div><span class="text-xs mt-1 block">确认信息</span></div>
         <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">2</div><span class="text-xs mt-1 block">邮寄地址</span></div>
-        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">3</div><span class="text-xs mt-1 block">电子签名</span></div>
-        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">4</div><span class="text-xs mt-1 block">身份证</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">3</div><span class="text-xs mt-1 block">身份证</span></div>
       </div>
 
       <!-- Step 1: Personal Info -->
@@ -125,22 +124,8 @@
         </div>
       </div>
 
-      <!-- Step 3: Signature -->
+      <!-- Step 3: ID Card -->
       <div id="formStep3" class="hidden bg-white rounded-xl shadow p-4">
-        <h3 class="font-bold text-lg mb-2">电子签名</h3>
-        <p class="text-sm text-gray-500 mb-3">在下方框内用鼠标按住拖动签名</p>
-        <div class="border-2 border-gray-400 rounded-lg bg-white overflow-hidden" style="width:100%;height:200px">
-          <canvas id="signatureCanvas" style="width:100%;height:200px;cursor:crosshair"></canvas>
-        </div>
-        <button onclick="clearSignature()" class="mt-2 text-sm text-blue-600">清除重签</button>
-        <div class="flex gap-3 mt-4">
-          <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
-          <button onclick="saveSignatureAndNext()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">保存并继续</button>
-        </div>
-      </div>
-
-      <!-- Step 4: ID Card -->
-      <div id="formStep4" class="hidden bg-white rounded-xl shadow p-4">
         <h3 class="font-bold text-lg mb-4">上传身份证</h3>
         <div class="space-y-4">
           <div>
@@ -172,7 +157,7 @@
         </div>
 
         <div class="flex gap-3 mt-4">
-          <button onclick="goToStep(3)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
+          <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
           <button onclick="submitDelegation()" id="submitBtn" class="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium">提交委托</button>
         </div>
       </div>
@@ -283,7 +268,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let currentUser = null;
 let currentDelegation = null;
-let sigCanvas = null, sigCtx = null, sigDrawing = false;
 let activeStudentTab = 'dashboard';
 let activeMonitorTab = 'dashboard';
 let formData = {};
@@ -529,51 +513,6 @@ function initNewForm(existingDelegation) {
   goToStep(1);
 }
 
-function initSignatureCanvas() {
-  sigCanvas = document.getElementById('signatureCanvas');
-  if (!sigCanvas) return;
-  const r = sigCanvas.getBoundingClientRect();
-  if (r.width < 10) { setTimeout(initSignatureCanvas, 200); return; }
-  sigCanvas.width = r.width;
-  sigCanvas.height = r.height;
-  sigCtx = sigCanvas.getContext('2d');
-  sigCtx.fillStyle = '#fff';
-  sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
-  sigCtx.strokeStyle = '#000';
-  sigCtx.lineWidth = 2;
-  sigCtx.lineCap = 'round';
-
-  sigCanvas.onmousedown = e => {
-    sigDrawing = true;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.beginPath();
-    sigCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  };
-  sigCanvas.onmousemove = e => {
-    if (!sigDrawing) return;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    sigCtx.stroke();
-  };
-  sigCanvas.onmouseup = sigCanvas.onmouseleave = () => { sigDrawing = false; };
-
-  sigCanvas.ontouchstart = e => {
-    e.preventDefault();
-    sigDrawing = true;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.beginPath();
-    sigCtx.moveTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-  };
-  sigCanvas.ontouchmove = e => {
-    e.preventDefault();
-    if (!sigDrawing) return;
-    const rect = sigCanvas.getBoundingClientRect();
-    sigCtx.lineTo(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-    sigCtx.stroke();
-  };
-  sigCanvas.ontouchend = () => { sigDrawing = false; };
-}
-
 async function saveDraftAndGoTo(step) {
   const pi = {
     student_id: document.getElementById('f1_studentId').value,
@@ -609,7 +548,7 @@ async function saveDraftAndGoTo(step) {
 }
 
 function goToStep(step) {
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 3; i++) {
     document.getElementById('formStep' + i).classList.toggle('hidden', i !== step);
     const dot = document.querySelector(`#stepIndicator > div:nth-child(${i}) > div`);
     if (dot) {
@@ -617,49 +556,6 @@ function goToStep(step) {
       dot.classList.add(step > i ? 'step-done' : step === i ? 'step-active' : 'step-pending');
     }
   }
-  if (step === 3) setTimeout(initSignatureCanvas, 300);
-}
-
-function clearSignature() {
-  if (sigCtx && sigCanvas) {
-    sigCtx.fillStyle = '#fff';
-    sigCtx.fillRect(0, 0, sigCanvas.width, sigCanvas.height);
-    sigCtx.strokeStyle = '#000';
-  }
-}
-
-async function saveSignatureAndNext() {
-  if (!sigCanvas) { alert('签名组件未初始化'); return; }
-  // Check if canvas is empty (all white)
-  const imgData = sigCtx.getImageData(0, 0, sigCanvas.width, sigCanvas.height).data;
-  let hasContent = false;
-  for (let i = 0; i < imgData.length; i += 4) {
-    if (imgData[i] < 250 || imgData[i+1] < 250 || imgData[i+2] < 250) { hasContent = true; break; }
-  }
-  if (!hasContent) { alert('请先在框内签名'); return; }
-
-  const dataURL = sigCanvas.toDataURL('image/png');
-  const blob = await (await fetch(dataURL)).blob();
-
-  // Create draft first if needed
-  if (!currentDelegation) {
-    const { data, error } = await supabase.from('delegations').insert({
-      student_id: currentUser.id,
-      status: 'draft',
-      personal_info: {},
-      mailing_address: {}
-    }).select().single();
-    if (error) { alert('创建失败: ' + error.message); return; }
-    currentDelegation = data;
-  }
-
-  const path = `${currentDelegation.id}/signature.png`;
-  const { error } = await supabase.storage.from('signatures').upload(path, blob, { upsert: true, contentType: 'image/png' });
-  if (error) { alert('签名上传失败: ' + error.message); return; }
-
-  const { data: urlData } = supabase.storage.from('signatures').getPublicUrl(path);
-  await supabase.from('delegations').update({ signature_url: urlData.publicUrl }).eq('id', currentDelegation.id);
-  goToStep(4);
 }
 
 function previewImage(input, imgId, placeholderId) {
@@ -835,7 +731,6 @@ async function loadStudentDetail() {
         <p>地址：${ma.address || '-'}</p>
         <p>预计离校：${ma.departure_date || '-'}</p>
       </div>
-      ${d.signature_url ? `<p><span class="text-gray-500">签名：</span><img src="${d.signature_url}" class="h-16 border rounded"></p>` : ''}
       ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded"></p>` : ''}
       ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded"></p>` : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
