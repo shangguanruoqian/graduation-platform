@@ -84,7 +84,8 @@
       <div class="flex justify-between mb-6" id="stepIndicator">
         <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-active inline-flex items-center justify-center text-sm font-bold mx-auto">1</div><span class="text-xs mt-1 block">确认信息</span></div>
         <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">2</div><span class="text-xs mt-1 block">邮寄地址</span></div>
-        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">3</div><span class="text-xs mt-1 block">身份证</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">3</div><span class="text-xs mt-1 block">委托书</span></div>
+        <div class="flex-1 text-center"><div class="w-8 h-8 rounded-full step-pending inline-flex items-center justify-center text-sm font-bold mx-auto">4</div><span class="text-xs mt-1 block">身份证</span></div>
       </div>
 
       <!-- Step 1: Personal Info -->
@@ -124,8 +125,23 @@
         </div>
       </div>
 
-      <!-- Step 3: ID Card -->
+      <!-- Step 3: Authorization Letter -->
       <div id="formStep3" class="hidden bg-white rounded-xl shadow p-4">
+        <h3 class="font-bold text-lg mb-4">上传手写委托书照片</h3>
+        <p class="text-sm text-gray-500 mb-3">请将手写签署好的《毕业证学位证代领委托书(个人版)》拍照上传</p>
+        <div class="upload-zone rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('letterInput').click()">
+          <div id="letterPreview" class="text-gray-400">📄 点击上传委托书照片</div>
+          <img id="letterImg" class="hidden max-h-48 mx-auto rounded" />
+        </div>
+        <input id="letterInput" type="file" accept="image/*" onchange="previewImage(this, 'letterImg', 'letterPreview')" class="hidden">
+        <div class="flex gap-3 mt-4">
+          <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
+          <button onclick="goToStep(4)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">下一步</button>
+        </div>
+      </div>
+
+      <!-- Step 4: ID Card -->
+      <div id="formStep4" class="hidden bg-white rounded-xl shadow p-4">
         <h3 class="font-bold text-lg mb-4">上传身份证</h3>
         <div class="space-y-4">
           <div>
@@ -548,7 +564,7 @@ async function saveDraftAndGoTo(step) {
 }
 
 function goToStep(step) {
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 4; i++) {
     document.getElementById('formStep' + i).classList.toggle('hidden', i !== step);
     const dot = document.querySelector(`#stepIndicator > div:nth-child(${i}) > div`);
     if (dot) {
@@ -632,7 +648,11 @@ async function submitDelegation() {
     return;
   }
 
-  // Upload ID card front
+  // Upload authorization letter
+  const letterFile = document.getElementById('letterInput').files[0];
+  let letterUrl = null;
+
+  // Upload ID card
   const idFrontFile = document.getElementById('idFrontInput').files[0];
   const idBackFile = document.getElementById('idBackInput').files[0];
   // video upload is handled by monitor after mailing
@@ -640,6 +660,12 @@ async function submitDelegation() {
   let idFrontUrl = null, idBackUrl = null;
 
   try {
+    if (letterFile) {
+      const path = `${currentUser.student_id}/letter.${letterFile.name.split('.').pop()}`;
+      await supabase.storage.from('id-cards').upload(path, letterFile, { upsert: true });
+      const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
+      letterUrl = data.publicUrl;
+    }
     if (idFrontFile) {
       const path = `${currentUser.student_id}/front.${idFrontFile.name.split('.').pop()}`;
       await supabase.storage.from('id-cards').upload(path, idFrontFile, { upsert: true });
@@ -668,6 +694,7 @@ async function submitDelegation() {
     certificate_types: document.getElementById('f1_certType').value,
     updated_at: new Date().toISOString()
   };
+  if (letterUrl) updates.signature_url = letterUrl;  // 复用signature_url字段存委托书照片
   if (idFrontUrl) updates.id_card_front_url = idFrontUrl;
   if (idBackUrl) updates.id_card_back_url = idBackUrl;
   const { error } = await supabase.from('delegations').update(updates).eq('id', currentDelegation.id);
@@ -731,6 +758,7 @@ async function loadStudentDetail() {
         <p>地址：${ma.address || '-'}</p>
         <p>预计离校：${ma.departure_date || '-'}</p>
       </div>
+      ${d.signature_url ? `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded"></p>` : ''}
       ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded"></p>` : ''}
       ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded"></p>` : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
