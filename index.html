@@ -117,7 +117,7 @@
           <div><label class="text-sm text-gray-600">收件人电话 <span class="text-red-500">*</span></label><input id="f2_phone" type="tel" class="w-full border rounded px-3 py-2"></div>
           <div><label class="text-sm text-gray-600">收件人身份证号</label><input id="f2_idcard" class="w-full border rounded px-3 py-2"></div>
           <div><label class="text-sm text-gray-600">收件地址 <span class="text-red-500">*</span></label><textarea id="f2_address" rows="3" placeholder="省/市/区/详细地址（精确到门牌号）" class="w-full border rounded px-3 py-2"></textarea></div>
-          <div><label class="text-sm text-gray-600">预计离校日期</label><input id="f2_departure" type="date" class="w-full border rounded px-3 py-2"></div>
+          <div><label class="text-sm text-gray-600">毕业证领取日期</label><input id="f2_departure" type="date" min="2026-06-26" max="2026-07-03" class="w-full border rounded px-3 py-2"></div>
         </div>
         <div class="flex gap-3 mt-4">
           <button onclick="goToStep(1)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
@@ -447,7 +447,7 @@ async function loadStudentDashboard() {
           <tr><td class="py-0.5 text-gray-600">顺丰标快</td><td class="py-0.5 text-right"></td><td class="py-0.5 text-right font-bold">18元</td></tr>
           <tr class="border-t border-green-200"><td class="py-1 font-bold text-green-800">合计</td><td class="py-1"></td><td class="py-1 text-right font-bold text-lg">27元</td></tr>
         </table>
-        <img src="qrcode.png" class="w-48 h-48 mx-auto mb-2 border rounded" alt="收款码">
+        <img src="qrcode.png" loading="lazy" class="w-48 h-48 mx-auto mb-2 border rounded" alt="收款码">
         <p class="text-xs text-red-500 text-center mb-2 font-bold">请在付款备注中填写你的姓名！</p>
         <p class="text-xs text-gray-500 text-center mb-2">微信/支付宝扫码支付，付款后点击下方按钮确认</p>
         <button onclick="confirmPayment()" class="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium">我已付款</button>
@@ -776,16 +776,16 @@ async function loadStudentDetail() {
         <p>地址：${ma.address || '-'}</p>
         <p>预计离校：${ma.departure_date || '-'}</p>
       </div>
-      ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded"></p>`; } })() : ''}
-      ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded"></p>` : ''}
-      ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded"></p>` : ''}
+      ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy" loading="lazy">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded" loading="lazy"></p>`; } })() : ''}
+      ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
+      ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded" loading="lazy"></p>` : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
       ${d.tracking_number ? `<p><span class="text-gray-500">快递单号：</span><span class="font-mono font-bold text-blue-600">${d.tracking_number}（${d.courier_company||''}）</span></p>` : ''}
       ${d.status === 'confirmed' ? `
         <div class="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
           <p class="font-bold text-green-800 text-sm mb-2">审核通过！请扫码支付</p>
           <table class="w-full text-sm mb-2"><tr><td>打印费</td><td class="text-right">9元</td></tr><tr><td>邮寄费</td><td class="text-right">18元</td></tr><tr class="border-t"><td class="font-bold">合计</td><td class="text-right font-bold text-lg">27元</td></tr></table>
-          <img src="qrcode.png" class="w-40 h-40 mx-auto border rounded mb-2">
+          <img src="qrcode.png" loading="lazy" class="w-40 h-40 mx-auto border rounded mb-2">
           <button onclick="confirmPayment()" class="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium">我已付款</button>
         </div>
       ` : ''}
@@ -952,9 +952,9 @@ async function viewDelegationDetail(id) {
       </div>
     </div>` : ''}
 
-    ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片（${urls.length}张）</h4><div class="flex flex-wrap gap-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded">`).join('')}</div></div>`; } catch(e) { return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片</h4><img src="${d.signature_url}" class="h-32 border rounded"></div>`; } })() : ''}
-    ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded"></div>` : ''}
-    ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded"></div>` : ''}
+    ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片（${urls.length}张）</h4><div class="flex flex-wrap gap-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded" loading="lazy" loading="lazy">`).join('')}</div></div>`; } catch(e) { return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片</h4><img src="${d.signature_url}" class="h-32 border rounded" loading="lazy"></div>`; } })() : ''}
+    ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded" loading="lazy"></div>` : ''}
+    ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded" loading="lazy"></div>` : ''}
     ${d.packaging_video_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">包装视频</h4><video src="${d.packaging_video_url}" controls class="w-full max-h-64 rounded"></video></div>` : ''}
 
     <!-- Review Section (for submitted/pending delegations) -->
