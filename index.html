@@ -168,7 +168,7 @@
             <tr><td class="py-1 text-gray-600">顺丰标快</td><td class="py-1 text-right">邮寄费</td><td class="py-1 text-right font-bold">18元</td></tr>
             <tr class="border-t border-blue-200"><td class="py-1 font-bold text-blue-800">合计</td><td class="py-1"></td><td class="py-1 text-right font-bold text-blue-800 text-lg">27元</td></tr>
           </table>
-          <p class="text-xs text-gray-500 mt-2">委托提交后，请等待班长发送已签字的委托书，收到后通过微信或支付宝完成支付。</p>
+          <p class="text-xs text-gray-500 mt-2">委托提交后，请等待班长发送已签字的委托书，收到后扫码支付。<span class="text-red-500 font-bold">付款时必须在备注中填写你的姓名！</span></p>
         </div>
 
         <div class="flex gap-3 mt-4">
@@ -240,6 +240,10 @@
           <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-blue-600" id="statSubmitted">-</p><p class="text-xs text-gray-500">已提交</p></div>
           <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-green-600" id="statMailed">-</p><p class="text-xs text-gray-500">已邮寄</p></div>
           <div class="bg-white rounded-xl shadow p-4"><p class="text-2xl font-bold text-orange-600" id="statPending">-</p><p class="text-xs text-gray-500">待处理</p></div>
+        </div>
+        <div id="paymentAlert" class="hidden bg-yellow-50 border border-yellow-300 rounded-xl p-3 mb-4">
+          <h3 class="font-bold text-sm text-yellow-800 mb-2">💰 待核实收款</h3>
+          <div id="paymentAlertList" class="text-xs space-y-1"></div>
         </div>
         <div class="bg-white rounded-xl shadow overflow-x-auto">
           <table class="w-full text-sm">
@@ -444,6 +448,7 @@ async function loadStudentDashboard() {
           <tr class="border-t border-green-200"><td class="py-1 font-bold text-green-800">合计</td><td class="py-1"></td><td class="py-1 text-right font-bold text-lg">27元</td></tr>
         </table>
         <img src="qrcode.png" class="w-48 h-48 mx-auto mb-2 border rounded" alt="收款码">
+        <p class="text-xs text-red-500 text-center mb-2 font-bold">请在付款备注中填写你的姓名！</p>
         <p class="text-xs text-gray-500 text-center mb-2">微信/支付宝扫码支付，付款后点击下方按钮确认</p>
         <button onclick="confirmPayment()" class="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium">我已付款</button>
       </div>
@@ -902,6 +907,20 @@ async function loadMonitorDashboard() {
   document.getElementById('statSubmitted').textContent = submitted;
   document.getElementById('statMailed').textContent = mailed;
   document.getElementById('statPending').textContent = pending;
+
+  // 待核实收款提醒
+  const paymentPending = active.filter(d => d.status === 'confirmed' && (d.notes || '').includes('学生已申报付款'));
+  const alertDiv = document.getElementById('paymentAlert');
+  const alertList = document.getElementById('paymentAlertList');
+  if (paymentPending.length > 0) {
+    alertDiv.classList.remove('hidden');
+    alertList.innerHTML = paymentPending.map(d => {
+      const s = stuMap[d.student_id] || {};
+      return `<div class="flex justify-between items-center py-1"><span>${s.name || '-'}（${s.student_id || '-'}）</span><span class="text-gray-400">${d.updated_at ? new Date(d.updated_at).toLocaleString('zh-CN') : ''}</span><button onclick="viewDelegationDetail('${d.id}')" class="text-blue-600 hover:underline ml-2">核实</button></div>`;
+    }).join('');
+  } else {
+    alertDiv.classList.add('hidden');
+  }
 
   const statusMap = {
     'draft': '草稿', 'submitted': '已提交', 'confirmed': '已审核',
