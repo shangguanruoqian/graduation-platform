@@ -476,15 +476,16 @@ async function resumeDraft() {
 async function confirmPayment() {
   if (!currentDelegation || currentDelegation.status !== 'confirmed') return;
   if (!confirm('确认您已扫码支付27元（打印费9元 + 邮费18元）？')) return;
+  // 仅添加备注，不改变状态——等待班长核实收款
   await supabase.from('delegations').update({
-    status: 'inspection_done',
+    notes: '学生已申报付款，待班长核实',
     updated_at: new Date().toISOString()
   }).eq('id', currentDelegation.id);
   await supabase.from('activity_logs').insert({
     student_id: currentUser.id, delegation_id: currentDelegation.id,
-    action: 'payment_confirmed', details: {}
+    action: 'payment_reported', details: {}
   });
-  alert('付款已确认！班长将安排邮寄。');
+  alert('已通知班长！请等待班长核实收款后进入邮寄环节。');
   loadStudentDashboard();
 }
 
@@ -1008,6 +1009,12 @@ async function viewDelegationDetail(id) {
         <button onclick="reviewDelegation('${d.id}','rejected')" class="flex-1 bg-red-600 text-white px-3 py-1.5 rounded text-sm">打回修改</button>
       </div>
     </div>` : (d.status === 'rejected' ? `<div class="border-t pt-3 mt-4 bg-red-50 -mx-6 px-6 pb-2"><p class="text-sm text-red-700">已打回：${d.notes||'无原因'}</p></div>` : '')}
+    ${d.status === 'confirmed' || d.status === 'submitted' ? `
+    <div class="border-t pt-3 mt-4 bg-blue-50 -mx-6 px-6 pb-2">
+      <h4 class="text-sm font-bold mb-2">💰 收款确认</h4>
+      <p class="text-xs text-gray-600 mb-2">学生即将或已看到收款码。请核对微信/支付宝到账后确认。</p>
+      <button onclick="confirmReceipt('${d.id}')" class="w-full bg-blue-600 text-white px-3 py-1.5 rounded text-sm">确认已收款（27元）</button>
+    </div>` : ''}
 
     <!-- Inspection Section -->
     <div class="border-t pt-3 mt-4">
@@ -1137,6 +1144,22 @@ async function exportIdCardPDF(id) {
   } catch (e) {
     alert('生成失败: ' + e.message);
   }
+}
+
+async function confirmReceipt(id) {
+  if (!confirm('确认已收到该学生支付的27元（打印费9元+邮费18元）？')) return;
+  const { error } = await supabase.from('delegations').update({
+    status: 'inspection_done',
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+  if (error) { alert('操作失败: ' + error.message); return; }
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: id,
+    action: 'receipt_confirmed', details: { amount: 27 }
+  });
+  alert('收款已确认，可进入邮寄环节');
+  document.getElementById('detailModal').classList.add('hidden');
+  switchMonitorTab(activeMonitorTab);
 }
 
 async function saveInspection(id) {
