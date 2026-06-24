@@ -160,6 +160,17 @@
             <input id="idBackInput" type="file" accept="image/*" onchange="previewImage(this, 'idBackImg', 'idBackPreview')" class="hidden">
           </div>
         </div>
+        <!-- Fee Summary -->
+        <div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <h4 class="font-bold text-sm text-blue-800 mb-2">费用明细（提交委托即表示同意支付）</h4>
+          <table class="w-full text-sm">
+            <tr><td class="py-1 text-gray-600">打印费</td><td class="py-1 text-right">1.5元/张 × 6张</td><td class="py-1 text-right font-bold">9元</td></tr>
+            <tr><td class="py-1 text-gray-600">顺丰标快</td><td class="py-1 text-right">邮寄费</td><td class="py-1 text-right font-bold">18元</td></tr>
+            <tr class="border-t border-blue-200"><td class="py-1 font-bold text-blue-800">合计</td><td class="py-1"></td><td class="py-1 text-right font-bold text-blue-800 text-lg">27元</td></tr>
+          </table>
+          <p class="text-xs text-gray-500 mt-2">委托提交后，请等待班长发送已签字的委托书，收到后通过微信或支付宝完成支付。</p>
+        </div>
+
         <div class="flex gap-3 mt-4">
           <button onclick="goToStep(3)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
           <button onclick="submitDelegation()" id="submitBtn" class="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium">提交委托</button>
@@ -424,6 +435,20 @@ async function loadStudentDashboard() {
     </div>
     ${data.status === 'draft' ? '<button onclick="resumeDraft()" class="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-medium">继续编辑草稿</button>' : ''}
     ${data.status === 'rejected' ? `<div class="mt-3 bg-red-50 border border-red-200 rounded p-2 text-sm text-red-700">审核未通过：${data.notes || '请修改后重提'}</div><button onclick="resubmitRejected()" class="mt-2 w-full bg-orange-600 text-white py-2 rounded-lg text-sm font-medium">修改并重新提交</button>` : ''}
+    ${data.status === 'confirmed' ? `
+      <div class="mt-3 bg-green-50 border border-green-200 rounded-lg p-3">
+        <p class="font-bold text-green-800 text-sm mb-2">审核通过！请扫码支付</p>
+        <table class="w-full text-sm mb-2">
+          <tr><td class="py-0.5 text-gray-600">打印费</td><td class="py-0.5 text-right">1.5元/张 × 6张</td><td class="py-0.5 text-right font-bold">9元</td></tr>
+          <tr><td class="py-0.5 text-gray-600">顺丰标快</td><td class="py-0.5 text-right"></td><td class="py-0.5 text-right font-bold">18元</td></tr>
+          <tr class="border-t border-green-200"><td class="py-1 font-bold text-green-800">合计</td><td class="py-1"></td><td class="py-1 text-right font-bold text-lg">27元</td></tr>
+        </table>
+        <img src="qrcode.png" class="w-48 h-48 mx-auto mb-2 border rounded" alt="收款码">
+        <p class="text-xs text-gray-500 text-center mb-2">微信/支付宝扫码支付，付款后点击下方按钮确认</p>
+        <button onclick="confirmPayment()" class="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-medium">我已付款</button>
+      </div>
+    ` : ''}
+    ${data.status === 'inspection_done' && !data.tracking_number ? '<p class="text-sm text-blue-600 mt-2">已付款，等待邮寄</p>' : ''}
   `;
 
   if (data.tracking_number) {
@@ -446,6 +471,21 @@ async function resumeDraft() {
   if (!currentDelegation || (currentDelegation.status !== 'draft' && currentDelegation.status !== 'rejected')) return;
   switchStudentTab('new');
   initNewForm(currentDelegation);
+}
+
+async function confirmPayment() {
+  if (!currentDelegation || currentDelegation.status !== 'confirmed') return;
+  if (!confirm('确认您已扫码支付27元（打印费9元 + 邮费18元）？')) return;
+  await supabase.from('delegations').update({
+    status: 'inspection_done',
+    updated_at: new Date().toISOString()
+  }).eq('id', currentDelegation.id);
+  await supabase.from('activity_logs').insert({
+    student_id: currentUser.id, delegation_id: currentDelegation.id,
+    action: 'payment_confirmed', details: {}
+  });
+  alert('付款已确认！班长将安排邮寄。');
+  loadStudentDashboard();
 }
 
 async function resubmitRejected() {
@@ -848,7 +888,7 @@ async function loadMonitorDashboard() {
   const total = active.length;
   const submitted = active.filter(d => d.status === 'submitted').length;
   const mailed = active.filter(d => d.status === 'mailed' || d.status === 'in_transit' || d.status === 'delivered').length;
-  const pending = submitted;
+  const pending = active.filter(d => d.status === 'confirmed').length;
 
   document.getElementById('statTotal').textContent = total;
   document.getElementById('statSubmitted').textContent = submitted;
@@ -921,6 +961,7 @@ async function viewDelegationDetail(id) {
 
     <div class="grid grid-cols-2 gap-4 mb-4">
       <div><span class="text-xs text-gray-500">委托状态</span><p class="font-bold">${statusMap[d.status] || d.status}</p></div>
+      <div><span class="text-xs text-gray-500">付款状态</span><p class="font-bold ${d.status === 'inspection_done' || d.status === 'mailed' || d.status === 'delivered' ? 'text-green-600' : 'text-red-500'}">${d.status === 'inspection_done' || d.status === 'mailed' || d.status === 'delivered' ? '已付款' : '未付款'}</p></div>
       <div><span class="text-xs text-gray-500">证书类型</span><p>${d.certificate_types === 'both' ? '毕业证+学位证' : d.certificate_types}</p></div>
     </div>
 
