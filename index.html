@@ -128,12 +128,12 @@
       <!-- Step 3: Authorization Letter -->
       <div id="formStep3" class="hidden bg-white rounded-xl shadow p-4">
         <h3 class="font-bold text-lg mb-4">上传手写委托书照片</h3>
-        <p class="text-sm text-gray-500 mb-3">请将手写签署好的《毕业证学位证代领委托书(个人版)》拍照上传</p>
+        <p class="text-sm text-gray-500 mb-3">请将手写签署好的《毕业证学位证代领委托书(个人版)》拍照上传（可多张）</p>
         <div class="upload-zone rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('letterInput').click()">
-          <div id="letterPreview" class="text-gray-400">📄 点击上传委托书照片</div>
-          <img id="letterImg" class="hidden max-h-48 mx-auto rounded" />
+          <div id="letterPreview" class="text-gray-400">📄 点击选择多张照片</div>
+          <div id="letterImgs" class="flex flex-wrap gap-2 mt-2 justify-center"></div>
         </div>
-        <input id="letterInput" type="file" accept="image/*" onchange="previewImage(this, 'letterImg', 'letterPreview')" class="hidden">
+        <input id="letterInput" type="file" accept="image/*" multiple onchange="previewLetterImages(this)" class="hidden">
         <div class="flex gap-3 mt-4">
           <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
           <button onclick="goToStep(4)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">下一步</button>
@@ -574,6 +574,23 @@ function goToStep(step) {
   }
 }
 
+function previewLetterImages(input) {
+  const container = document.getElementById('letterImgs');
+  const placeholder = document.getElementById('letterPreview');
+  container.innerHTML = '';
+  placeholder.classList.add('hidden');
+  Array.from(input.files).forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'h-20 border rounded object-cover';
+      container.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function previewImage(input, imgId, placeholderId) {
   const file = input.files[0];
   if (!file) return;
@@ -648,9 +665,9 @@ async function submitDelegation() {
     return;
   }
 
-  // Upload authorization letter
-  const letterFile = document.getElementById('letterInput').files[0];
-  let letterUrl = null;
+  // Upload authorization letter (multiple)
+  const letterFiles = document.getElementById('letterInput').files;
+  let letterUrls = [];
 
   // Upload ID card
   const idFrontFile = document.getElementById('idFrontInput').files[0];
@@ -660,11 +677,12 @@ async function submitDelegation() {
   let idFrontUrl = null, idBackUrl = null;
 
   try {
-    if (letterFile) {
-      const path = `${currentUser.student_id}/letter.${letterFile.name.split('.').pop()}`;
-      await supabase.storage.from('id-cards').upload(path, letterFile, { upsert: true });
+    for (let i = 0; i < letterFiles.length; i++) {
+      const f = letterFiles[i];
+      const path = `${currentUser.student_id}/letter_${Date.now()}_${i}.${f.name.split('.').pop()}`;
+      await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
-      letterUrl = data.publicUrl;
+      letterUrls.push(data.publicUrl);
     }
     if (idFrontFile) {
       const path = `${currentUser.student_id}/front.${idFrontFile.name.split('.').pop()}`;
@@ -694,7 +712,7 @@ async function submitDelegation() {
     certificate_types: document.getElementById('f1_certType').value,
     updated_at: new Date().toISOString()
   };
-  if (letterUrl) updates.signature_url = letterUrl;  // 复用signature_url字段存委托书照片
+  if (letterUrls.length > 0) updates.signature_url = JSON.stringify(letterUrls);
   if (idFrontUrl) updates.id_card_front_url = idFrontUrl;
   if (idBackUrl) updates.id_card_back_url = idBackUrl;
   const { error } = await supabase.from('delegations').update(updates).eq('id', currentDelegation.id);
@@ -758,7 +776,7 @@ async function loadStudentDetail() {
         <p>地址：${ma.address || '-'}</p>
         <p>预计离校：${ma.departure_date || '-'}</p>
       </div>
-      ${d.signature_url ? `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded"></p>` : ''}
+      ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div><span class="text-gray-500 text-sm">委托书（${urls.length}张）：</span><div class="flex flex-wrap gap-1 mt-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded">`).join('')}</div></div>`; } catch(e) { return `<p><span class="text-gray-500">委托书：</span><img src="${d.signature_url}" class="h-32 border rounded"></p>`; } })() : ''}
       ${d.id_card_front_url ? `<p><span class="text-gray-500">身份证正面：</span><img src="${d.id_card_front_url}" class="h-24 border rounded"></p>` : ''}
       ${d.id_card_back_url ? `<p><span class="text-gray-500">身份证反面：</span><img src="${d.id_card_back_url}" class="h-24 border rounded"></p>` : ''}
       ${d.packaging_video_url ? `<p><span class="text-gray-500">包装视频：</span><video src="${d.packaging_video_url}" controls class="w-full max-h-48 rounded"></video></p>` : ''}
@@ -934,7 +952,7 @@ async function viewDelegationDetail(id) {
       </div>
     </div>` : ''}
 
-    ${d.signature_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">签名</h4><img src="${d.signature_url}" class="h-16 border rounded"></div>` : ''}
+    ${d.signature_url ? (() => { try { const urls = JSON.parse(d.signature_url); return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片（${urls.length}张）</h4><div class="flex flex-wrap gap-1">${urls.map(u => `<img src="${u}" class="h-24 border rounded">`).join('')}</div></div>`; } catch(e) { return `<div class="mb-3"><h4 class="text-sm font-bold mb-1">委托书照片</h4><img src="${d.signature_url}" class="h-32 border rounded"></div>`; } })() : ''}
     ${d.id_card_front_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证正面</h4><img src="${d.id_card_front_url}" class="h-32 border rounded"></div>` : ''}
     ${d.id_card_back_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">身份证反面</h4><img src="${d.id_card_back_url}" class="h-32 border rounded"></div>` : ''}
     ${d.packaging_video_url ? `<div class="mb-3"><h4 class="text-sm font-bold mb-1">包装视频</h4><video src="${d.packaging_video_url}" controls class="w-full max-h-64 rounded"></video></div>` : ''}
