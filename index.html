@@ -1079,12 +1079,18 @@ async function exportLetterPDF(id, type) {
 
   const name = (d.personal_info || {}).name || 'student';
   const prefix = type === 'signed' ? '代签委托书' : '手写委托书';
-  const loadImg = async (url) => {
-    const resp = await fetch(url); const blob = await resp.blob();
-    const dataUrl = await new Promise(r => { const reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsDataURL(blob); });
-    const img = new Image();
-    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
-    return img;
+  const loadImg = async (url, retries = 2) => {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const dataUrl = await new Promise(r => { const reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsDataURL(blob); });
+        const img = new Image();
+        await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error('decode')); img.src = dataUrl; });
+        return img;
+      } catch(e) { if (i === retries) throw e; await new Promise(r => setTimeout(r, 1000)); }
+    }
   };
 
   try {
@@ -1110,22 +1116,18 @@ async function exportIdCardPDF(id) {
   if (!d || !d.id_card_front_url || !d.id_card_back_url) { alert('缺少身份证照片'); return; }
   const name = (d.personal_info || {}).name || 'student';
 
-  const loadImg = async (url) => {
-    // 用 fetch+blob 绕过 CORS 限制
-    const resp = await fetch(url);
-    const blob = await resp.blob();
-    const dataUrl = await new Promise(r => {
-      const reader = new FileReader();
-      reader.onload = () => r(reader.result);
-      reader.readAsDataURL(blob);
-    });
-    const img = new Image();
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = dataUrl;
-    });
-    return img;
+  const loadImg = async (url, retries = 2) => {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const resp = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        const dataUrl = await new Promise(r => { const reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsDataURL(blob); });
+        const img = new Image();
+        await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error('decode')); img.src = dataUrl; });
+        return img;
+      } catch(e) { if (i === retries) throw e; await new Promise(r => setTimeout(r, 1000)); }
+    }
   };
 
   try {
