@@ -1117,31 +1117,21 @@ async function exportIdCardPDF(id) {
 
   try {
     const [front, back] = await Promise.all([loadImg(d.id_card_front_url), loadImg(d.id_card_back_url)]);
-
-    // Canvas: A4 ratio, both images stacked
-    const cw = 1240, ch = 1754; // A4 at 150dpi
-    const canvas = document.createElement('canvas');
-    canvas.width = cw;
-    canvas.height = ch;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, cw, ch);
-
-    const margin = 80;
-    const availW = cw - margin * 2;
-    const imgH = availW * (front.height / front.width); // keep aspect ratio
-    const gap = 40;
-    const totalH = imgH * 2 + gap;
-    const startY = (ch - totalH) / 2;
-
-    ctx.drawImage(front, margin, startY, availW, imgH);
-    ctx.drawImage(back, margin, startY + imgH + gap, availW, imgH);
-
-    // Export via jsPDF as image-only
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
-    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    const pageW = 210, pageH = 297;
+    const margin = 15;
+    const availW = pageW - margin * 2;
+
+    // A4 page: two images stacked vertically, centered
+    const imgH1 = availW * (front.height / front.width);
+    const imgH2 = availW * (back.height / back.width);
+    const gap = 8;
+    const totalH = imgH1 + gap + imgH2;
+    const startY = Math.max(margin, (pageH - totalH) / 2);
+
+    pdf.addImage(front, 'JPEG', margin, startY, availW, Math.min(imgH1, pageH - startY - margin));
+    pdf.addImage(back, 'JPEG', margin, startY + imgH1 + gap, availW, Math.min(imgH2, pageH - startY - imgH1 - gap - margin));
     pdf.save(`${name}_idcard.pdf`);
 
   } catch (e) {
