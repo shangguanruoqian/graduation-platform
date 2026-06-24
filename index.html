@@ -1120,18 +1120,17 @@ async function exportIdCardPDF(id) {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageW = 210, pageH = 297;
-    const margin = 15;
-    const availW = pageW - margin * 2;
 
-    // A4 page: two images stacked vertically, centered
-    const imgH1 = availW * (front.height / front.width);
-    const imgH2 = availW * (back.height / back.width);
-    const gap = 8;
-    const totalH = imgH1 + gap + imgH2;
-    const startY = Math.max(margin, (pageH - totalH) / 2);
+    // 身份证标准比例 85.6mm × 54mm = 1.585:1
+    const idW = 85;  // mm on paper
+    const idH = idW / 1.585; // ≈ 53.6mm
+    const x = (pageW - idW) / 2; // 水平居中
+    const gap = 10;
+    const totalH = idH * 2 + gap;
+    const startY = (pageH - totalH) / 2; // 垂直居中
 
-    pdf.addImage(front, 'JPEG', margin, startY, availW, Math.min(imgH1, pageH - startY - margin));
-    pdf.addImage(back, 'JPEG', margin, startY + imgH1 + gap, availW, Math.min(imgH2, pageH - startY - imgH1 - gap - margin));
+    pdf.addImage(front, 'JPEG', x, startY, idW, idH);
+    pdf.addImage(back, 'JPEG', x, startY + idH + gap, idW, idH);
     pdf.save(`${name}_idcard.pdf`);
 
   } catch (e) {
