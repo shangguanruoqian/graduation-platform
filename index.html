@@ -707,21 +707,21 @@ async function submitDelegation() {
   try {
     for (let i = 0; i < letterFileList.length; i++) {
       const f = await compressImage(letterFileList[i]);
-      const path = `${currentUser.student_id}/letter_${Date.now()}_${i}.jpg`;
+      const path = `${currentDelegation.id}/letter_${Date.now()}_${i}.jpg`;
       await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       letterUrls.push(data.publicUrl);
     }
     if (idFrontFile) {
       const f = await compressImage(idFrontFile);
-      const path = `${currentUser.student_id}/front.jpg`;
+      const path = `${currentDelegation.id}/front.jpg`;
       await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       idFrontUrl = data.publicUrl;
     }
     if (idBackFile) {
       const f = await compressImage(idBackFile);
-      const path = `${currentUser.student_id}/back.jpg`;
+      const path = `${currentDelegation.id}/back.jpg`;
       await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       idBackUrl = data.publicUrl;
