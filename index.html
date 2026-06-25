@@ -1121,20 +1121,7 @@ function compressImage(file, maxW = 1920, quality = 0.8) {
   });
 }
 
-function ensureLandscape(img) {
-  // 如果竖版（高>宽），旋转90度变为横版
-  if (img.height <= img.width) return img;
-  const c = document.createElement('canvas');
-  c.width = img.height; c.height = img.width;
-  const ctx = c.getContext('2d');
-  ctx.translate(c.width/2, c.height/2);
-  ctx.rotate(Math.PI/2);
-  ctx.drawImage(img, -img.width/2, -img.height/2);
-  const rotated = new Image();
-  rotated.src = c.toDataURL('image/jpeg', 0.92);
-  return rotated;
-}
-async function rotateIfNeeded(img) {
+async function ensureLandscape(img) {
   if (img.height <= img.width) return img;
   return await new Promise(resolve => {
     const c = document.createElement('canvas');
@@ -1186,7 +1173,7 @@ async function exportLetterPDF(id, type) {
     for (let i = 0; i < imgs.length; i++) {
       if (i > 0) pdf.addPage();
       let img = imgs[i];
-      if (img.height > img.width) img = ensureLandscape(img);
+      if (img.height > img.width) img = await ensureLandscape(img);
       const imgH = availW * (img.height / img.width);
       const fitH = Math.min(imgH, pageH - margin * 2);
       pdf.addImage(img, 'JPEG', margin, margin, availW, fitH);
@@ -1218,8 +1205,8 @@ async function exportIdCardPDF(id) {
   try {
     let front = await loadImg(d.id_card_front_url);
     let back = await loadImg(d.id_card_back_url);
-    if (front.height > front.width) front = ensureLandscape(front);
-    if (back.height > back.width) back = ensureLandscape(back);
+    front = await ensureLandscape(front);
+    back = await ensureLandscape(back);
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4');
