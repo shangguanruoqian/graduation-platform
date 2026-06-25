@@ -139,6 +139,9 @@
           <div id="letterImgs" class="flex flex-wrap gap-2 mt-2 justify-center"></div>
         </div>
         <input id="letterInput" type="file" accept="image/*" multiple onchange="previewLetterImages(this)" class="hidden">
+
+<!-- 已选照片列表 -->
+<div id="letterFileList" class="text-xs text-gray-500 mt-1"></div>
         <div class="flex gap-3 mt-4">
           <button onclick="goToStep(2)" class="flex-1 border py-2.5 rounded-lg font-medium">上一步</button>
           <button onclick="goToStep(4)" class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-medium">下一步</button>
@@ -517,6 +520,7 @@ async function resubmitRejected() {
 
 function initNewForm(existingDelegation) {
   formData = {};
+  letterFileList = [];
   currentDelegation = existingDelegation || null;
 
   // Pre-fill from existing delegation or user info
@@ -586,21 +590,33 @@ function goToStep(step) {
   }
 }
 
+let letterFileList = []; // 累积委托书文件
+
 function previewLetterImages(input) {
   const container = document.getElementById('letterImgs');
   const placeholder = document.getElementById('letterPreview');
-  container.innerHTML = '';
   placeholder.classList.add('hidden');
-  Array.from(input.files).forEach((file, i) => {
+
+  // 追加新文件到列表
+  Array.from(input.files).forEach(f => letterFileList.push(f));
+
+  // 重建预览
+  container.innerHTML = '';
+  letterFileList.forEach((file, i) => {
     const reader = new FileReader();
     reader.onload = e => {
       const img = document.createElement('img');
       img.src = e.target.result;
-      img.className = 'h-20 border rounded object-cover';
+      img.className = 'h-20 border rounded object-cover preview-img';
+      img.onclick = (ev) => { ev.stopPropagation(); openViewer(ev.target.src); };
       container.appendChild(img);
     };
     reader.readAsDataURL(file);
   });
+  document.getElementById('letterFileList').textContent = `已选择 ${letterFileList.length} 张`;
+
+  // 重置input，使再次选择同一文件时仍触发change
+  input.value = '';
 }
 
 function previewImage(input, imgId, placeholderId) {
@@ -677,8 +693,7 @@ async function submitDelegation() {
     return;
   }
 
-  // Upload authorization letter (multiple)
-  const letterFiles = document.getElementById('letterInput').files;
+  // Upload authorization letter (multiple, accumulated)
   let letterUrls = [];
 
   // Upload ID card
@@ -689,8 +704,8 @@ async function submitDelegation() {
   let idFrontUrl = null, idBackUrl = null;
 
   try {
-    for (let i = 0; i < letterFiles.length; i++) {
-      const f = letterFiles[i];
+    for (let i = 0; i < letterFileList.length; i++) {
+      const f = letterFileList[i];
       const path = `${currentUser.student_id}/letter_${Date.now()}_${i}.${f.name.split('.').pop()}`;
       await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
