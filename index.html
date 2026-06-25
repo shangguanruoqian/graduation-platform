@@ -706,21 +706,23 @@ async function submitDelegation() {
 
   try {
     for (let i = 0; i < letterFileList.length; i++) {
-      const f = letterFileList[i];
-      const path = `${currentUser.student_id}/letter_${Date.now()}_${i}.${f.name.split('.').pop()}`;
+      const f = await compressImage(letterFileList[i]);
+      const path = `${currentUser.student_id}/letter_${Date.now()}_${i}.jpg`;
       await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       letterUrls.push(data.publicUrl);
     }
     if (idFrontFile) {
-      const path = `${currentUser.student_id}/front.${idFrontFile.name.split('.').pop()}`;
-      await supabase.storage.from('id-cards').upload(path, idFrontFile, { upsert: true });
+      const f = await compressImage(idFrontFile);
+      const path = `${currentUser.student_id}/front.jpg`;
+      await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       idFrontUrl = data.publicUrl;
     }
     if (idBackFile) {
-      const path = `${currentUser.student_id}/back.${idBackFile.name.split('.').pop()}`;
-      await supabase.storage.from('id-cards').upload(path, idBackFile, { upsert: true });
+      const f = await compressImage(idBackFile);
+      const path = `${currentUser.student_id}/back.jpg`;
+      await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
       const { data } = supabase.storage.from('id-cards').getPublicUrl(path);
       idBackUrl = data.publicUrl;
     }
@@ -1096,6 +1098,29 @@ async function deleteDelegation(id) {
   switchMonitorTab(activeMonitorTab);
 }
 
+function compressImage(file, maxW = 1920, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > maxW) { h = h * maxW / w; w = maxW; }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(blob => {
+          if (blob.size < file.size) resolve(blob);
+          else resolve(file); // 如果没变小就用原图
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function ensureLandscape(img) {
   // 如果竖版（高>宽），旋转90度变为横版
   if (img.height <= img.width) return img;
@@ -1269,8 +1294,8 @@ async function uploadSignedLetter(id) {
   }
 
   for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const path = `${id}/signed_${Date.now()}_${i}.${f.name.split('.').pop()}`;
+    const f = await compressImage(files[i]);
+    const path = `${id}/signed_${Date.now()}_${i}.jpg`;
     await supabase.storage.from('id-cards').upload(path, f, { upsert: true });
     const { data: ud } = supabase.storage.from('id-cards').getPublicUrl(path);
     urls.push(ud.publicUrl);
