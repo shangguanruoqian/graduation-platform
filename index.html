@@ -18,7 +18,8 @@
   .upload-zone:hover { border-color: #3b82f6; background: #eff6ff; }
   canvas { touch-action: none; }
   .preview-img { cursor: zoom-in; }
-  #imgViewer { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
+  #imgViewer { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:999; align-items:center; justify-content:center; cursor:zoom-out; }
+  #imgViewer.show { display:flex; }
   #imgViewer img { max-width:95vw; max-height:95vh; object-fit:contain; }
   @media (max-width: 640px) { .desktop-only { display: none !important; } }
   @media (min-width: 641px) { .mobile-only { display: none !important; } }
@@ -285,7 +286,7 @@
 <!-- ============================================================ -->
 <!-- SUPABASE CONFIG — 替换为你的项目信息 -->
 <!-- ============================================================ -->
-<div id="imgViewer" class="hidden" onclick="this.classList.add('hidden')"><img id="imgViewerImg" src=""></div>
+<div id="imgViewer" onclick="this.classList.remove('show')" style="display:none"><img id="imgViewerImg" src=""></div>
 
 <script>
 // ⚠️ 请在 Supabase 项目中获取以下信息并替换
@@ -377,7 +378,7 @@ async function doLogin() {
 
 function openViewer(src) {
   document.getElementById('imgViewerImg').src = src;
-  document.getElementById('imgViewer').classList.remove('hidden');
+  document.getElementById('imgViewer').classList.add('show');
 }
 
 function logout() {
